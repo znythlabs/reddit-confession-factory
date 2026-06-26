@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reddit-Style Confession Story Factory — Design Spec</title>
+<style>
+  :root {
+    --bg: #f7f4ef;
+    --bg-card: #fffdf9;
+    --ink: #1c1a18;
+    --ink-muted: #5b574f;
+    --ink-soft: #8a8579;
+    --rule: #e3ddd0;
+    --accent: #b1351f;
+    --accent-soft: #f1d9d2;
+    --accent-deep: #7a1f0f;
+    --code-bg: #efe9dd;
+    --code-ink: #3a342b;
+    --ok-bg: #e8efe5;
+    --ok-ink: #2f5a2a;
+    --no-bg: #f4e0dc;
+    --no-ink: #7a1f0f;
+    --shadow: 0 1px 0 rgba(28, 26, 24, 0.04), 0 8px 24px -16px rgba(28, 26, 24, 0.18);
+    --measure: 68ch;
+    --font-serif: "Iowan Old Style", "Source Serif Pro", "Charter", "Georgia", "Times New Roman", serif;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", "Menlo", "Consolas", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161412;
+      --bg-card: #1f1c19;
+      --ink: #ece6dc;
+      --ink-muted: #a9a397;
+      --ink-soft: #7a7468;
+      --rule: #2e2a26;
+      --accent: #e07a5f;
+      --accent-soft: #3a201a;
+      --accent-deep: #f0a28c;
+      --code-bg: #221e1a;
+      --code-ink: #d6cfc1;
+      --ok-bg: #1f2a1c;
+      --ok-ink: #a8c89c;
+      --no-bg: #2b1a17;
+      --no-ink: #e89a8b;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-serif);
+    font-size: 17px;
+    line-height: 1.65;
+    font-feature-settings: "kern" 1, "liga" 1, "onum" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .page {
+    max-width: calc(var(--measure) + 8rem);
+    margin: 0 auto;
+    padding: 4rem 1.5rem 6rem;
+  }
+
+  /* Header */
+  .doc-head {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 2rem;
+    margin-bottom: 3rem;
+  }
+  .eyebrow {
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: var(--font-serif);
+    font-size: clamp(2rem, 4.5vw, 3.2rem);
+    line-height: 1.1;
+    letter-spacing: -0.015em;
+    margin: 0 0 1rem;
+    font-weight: 600;
+  }
+  .doc-sub {
+    color: var(--ink-muted);
+    font-size: 1.05rem;
+    margin: 0;
+    max-width: var(--measure);
+  }
+  .doc-meta {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.25rem;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    color: var(--ink-soft);
+  }
+  .doc-meta span::before {
+    content: "•";
+    margin-right: 1.25rem;
+    color: var(--rule);
+  }
+  .doc-meta span:first-child::before { content: ""; margin: 0; }
+
+  /* Headings */
+  h2 {
+    font-family: var(--font-serif);
+    font-size: 1.7rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin: 3.5rem 0 1rem;
+    font-weight: 600;
+    scroll-margin-top: 2rem;
+  }
+  h2::before {
+    content: "";
+    display: block;
+    width: 2.5rem;
+    height: 1px;
+    background: var(--accent);
+    margin-bottom: 1rem;
+  }
+  h3 {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    line-height: 1.3;
+    margin: 2.25rem 0 0.75rem;
+    font-weight: 600;
+    scroll-margin-top: 2rem;
+  }
+  h4 {
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    margin: 1.5rem 0 0.5rem;
+    color: var(--ink);
+  }
+  h2 a.anchor, h3 a.anchor, h4 a.anchor {
+    color: var(--ink-soft);
+    text-decoration: none;
+    margin-left: 0.5rem;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    font-weight: 400;
+  }
+  h2:hover a.anchor, h3:hover a.anchor, h4:hover a.anchor { opacity: 1; }
+
+  p { margin: 0 0 1rem; }
+  strong { font-weight: 600; }
+
+  /* Inline code */
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--code-bg);
+    color: var(--code-ink);
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+    border: 1px solid var(--rule);
+  }
+
+  /* Lists */
+  ul, ol { margin: 0 0 1rem; padding-left: 1.5rem; }
+  li { margin-bottom: 0.35rem; }
+  li > ul, li > ol { margin-top: 0.35rem; margin-bottom: 0.35rem; }
+
+  /* TOC */
+  nav.toc {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.5rem 1.75rem;
+    margin: 2rem 0 3rem;
+    box-shadow: var(--shadow);
+  }
+  nav.toc h2 {
+    font-size: 0.78rem;
+    font-family: var(--font-sans);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--ink-soft);
+    margin: 0 0 0.85rem;
+    font-weight: 600;
+  }
+  nav.toc h2::before { display: none; }
+  nav.toc ol {
+    margin: 0;
+    padding-left: 1.2rem;
+    columns: 2;
+    column-gap: 2rem;
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+    line-height: 1.5;
+  }
+  nav.toc li { margin-bottom: 0.4rem; break-inside: avoid; }
+  nav.toc a {
+    color: var(--ink);
+    text-decoration: none;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  nav.toc a:hover { color: var(--accent); border-bottom-color: var(--accent); }
+  @media (max-width: 640px) { nav.toc ol { columns: 1; } }
+
+  /* Cards: scope, do/dont, decisions */
+  .cards {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr 1fr;
+    margin: 1.25rem 0 1.5rem;
+  }
+  @media (max-width: 720px) { .cards { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .card h4 {
+    margin: 0 0 0.5rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--ink-soft);
+    font-family: var(--font-sans);
+  }
+  .card.do h4 { color: var(--ok-ink); }
+  .card.dont h4 { color: var(--no-ink); }
+  .card ul { padding-left: 1.15rem; margin: 0; }
+  .card li { font-size: 0.95rem; }
+
+  /* Decision list */
+  .decisions {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    border-left: 2px solid var(--rule);
+  }
+  .decisions li {
+    padding: 0.4rem 0 0.4rem 1rem;
+    margin: 0;
+  }
+  .decisions li::before {
+    content: "→";
+    color: var(--accent);
+    margin-right: 0.6rem;
+    font-weight: 600;
+  }
+  .decisions strong {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  /* Data model blocks */
+  .model {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 1rem 1.25rem 0.5rem;
+    margin: 1rem 0 1.5rem;
+    box-shadow: var(--shadow);
+  }
+  .model h3 {
+    margin: 0 0 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--accent-deep);
+    font-weight: 600;
+  }
+  .model .field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+    padding: 0.35rem 0;
+    border-top: 1px dashed var(--rule);
+    font-size: 0.95rem;
+  }
+  .model .field:first-of-type { border-top: 0; }
+  .model .field code {
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--ink);
+    font-size: 0.9em;
+  }
+  .model .label {
+    font-family: var(--font-sans);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--ink-soft);
+    margin-bottom: 0.1rem;
+  }
+  .model .field .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 0.6rem;
+  }
+  .model .field .row code {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    padding: 0.1em 0.45em;
+    border-radius: 3px;
+    color: var(--code-ink);
+  }
+  .model.forbidden { border-left-color: var(--accent); }
+  .model.forbidden h3::after {
+    content: "— forbidden";
+    color: var(--no-ink);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+  }
+
+  /* Principles list */
+  .principles {
+    counter-reset: principle;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+  }
+  .principles > li {
+    counter-increment: principle;
+    padding: 1rem 0 1rem 3.25rem;
+    position: relative;
+    border-top: 1px solid var(--rule);
+  }
+  .principles > li:first-child { border-top: 0; padding-top: 0.5rem; }
+  .principles > li::before {
+    content: counter(principle, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+  .principles > li:first-child::before { top: 0.5rem; }
+  .principles strong {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 1.05rem;
+  }
+  .principles ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.4rem 0 0;
+  }
+  .principles ul li {
+    padding: 0.15rem 0 0.15rem 1rem;
+    position: relative;
+    font-size: 0.97rem;
+  }
+  .principles ul li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--ink-soft);
+  }
+
+  /* Pipeline visual */
+  .pipeline {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.4rem;
+    margin: 1.5rem 0 1.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.78rem;
+  }
+  @media (max-width: 900px) {
+    .pipeline { grid-template-columns: repeat(2, 1fr); }
+  }
+  .pipeline .step {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-top: 2px solid var(--accent);
+    padding: 0.6rem 0.5rem;
+    text-align: center;
+    border-radius: 4px;
+    color: var(--ink);
+    line-height: 1.3;
+  }
+  .pipeline .step strong {
+    display: block;
+    color: var(--accent-deep);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.2rem;
+  }
+
+  /* Steps list (ordered) */
+  ol.steps {
+    counter-reset: step;
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+  }
+  ol.steps > li {
+    counter-increment: step;
+    padding: 0.5rem 0 0.5rem 2.5rem;
+    position: relative;
+  }
+  ol.steps > li::before {
+    content: counter(step);
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    text-align: center;
+    line-height: 1.75rem;
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  /* Roles list */
+  .roles {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    display: grid;
+    gap: 0.6rem;
+    grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 720px) { .roles { grid-template-columns: 1fr; } }
+  .roles li {
+    background: var(--bg-card);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 0.7rem 0.95rem;
+    font-size: 0.95rem;
+  }
+  .roles strong {
+    color: var(--accent-deep);
+    font-family: var(--font-sans);
+    font-size: 0.92rem;
+  }
+
+  /* Dashboard screens */
+  .screens {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+    counter-reset: screen;
+  }
+  .screens > li {
+    counter-increment: screen;
+    padding: 0.85rem 0 0.85rem 2.5rem;
+    position: relative;
+    border-top: 1px solid var(--rule);
+  }
+  .screens > li:first-child { border-top: 0; }
+  .screens > li::before {
+    content: counter(screen, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 0.85rem;
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .screens > li:first-child::before { top: 0.85rem; }
+  .screens strong {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    margin-bottom: 0.3rem;
+  }
+  .screens ul {
+    list-style: none;
+    padding: 0;
+    margin: 0.25rem 0 0;
+  }
+  .screens ul li {
+    padding: 0.1rem 0 0.1rem 1rem;
+    position: relative;
+    font-size: 0.95rem;
+  }
+  .screens ul li::before {
+    content: "·";
+    position: absolute;
+    left: 0;
+    color: var(--ink-soft);
+    font-weight: 700;
+  }
+
+  /* Callout */
+  .callout {
+    background: var(--accent-soft);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.25rem;
+    margin: 1.25rem 0;
+    border-radius: 0 4px 4px 0;
+    color: var(--ink);
+    font-size: 0.97rem;
+  }
+  .callout strong { color: var(--accent-deep); }
+
+  /* Risks */
+  .risks {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.5rem;
+  }
+  .risks > li {
+    padding: 0.85rem 0 0.85rem 1.5rem;
+    border-top: 1px solid var(--rule);
+    position: relative;
+  }
+  .risks > li:first-child { border-top: 0; padding-top: 0.5rem; }
+  .risks > li::before {
+    content: "!";
+    position: absolute;
+    left: 0;
+    top: 0.85rem;
+    width: 1.1rem;
+    height: 1.1rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--bg);
+    text-align: center;
+    line-height: 1.1rem;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    font-weight: 700;
+  }
+  .risks > li:first-child::before { top: 0.5rem; }
+  .risks strong { display: block; font-family: var(--font-sans); font-size: 1rem; margin-bottom: 0.2rem; }
+
+  /* Acceptance criteria */
+  ol.criteria {
+    counter-reset: criterion;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  ol.criteria > li {
+    counter-increment: criterion;
+    padding: 0.6rem 0 0.6rem 2.25rem;
+    position: relative;
+    border-top: 1px solid var(--rule);
+    font-size: 0.98rem;
+  }
+  ol.criteria > li:first-child { border-top: 0; }
+  ol.criteria > li::before {
+    content: "AC " counter(criterion, decimal-leading-zero);
+    position: absolute;
+    left: 0;
+    top: 0.6rem;
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+  }
+
+  /* Footer */
+  footer.colophon {
+    margin-top: 5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--font-sans);
+    font-size: 0.82rem;
+    color: var(--ink-soft);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    justify-content: space-between;
+  }
+
+  /* Print */
+  @media print {
+    body { background: white; color: black; font-size: 11pt; }
+    .page { max-width: none; padding: 1cm; }
+    nav.toc { break-after: page; }
+    h2 { break-after: avoid; page-break-after: avoid; }
+    .card, .model, .pipeline .step, .roles li, nav.toc { box-shadow: none; }
+    a { color: black; text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+<main class="page">
+
+  <header class="doc-head">
+    <p class="eyebrow">Design Spec · v1</p>
+    <h1>Reddit-Style Confession Story Factory</h1>
+    <p class="doc-sub">A fiction-first faceless short-video pipeline that generates confession-style stories, filters them through hybrid scoring, renders vertical videos with a forum-inspired hook card and mood-matched backgrounds, exports publish-ready assets for TikTok, Reels, and Shorts, and exposes an observer-only dashboard for monitoring pipeline health and outcomes.</p>
+    <div class="doc-meta">
+      <span>2026-06-26</span>
+      <span>Faceless video · OMP</span>
+      <span>Author: assistant · via brainstorming</span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <h2>Contents</h2>
+    <ol>
+      <li><a href="#goal">Goal</a></li>
+      <li><a href="#scope">Scope</a></li>
+      <li><a href="#definition">Product Definition</a></li>
+      <li><a href="#decisions">User Decisions</a></li>
+      <li><a href="#principles">Core Principles</a></li>
+      <li><a href="#architecture">High-Level Architecture</a></li>
+      <li><a href="#data-model">Canonical Data Model</a></li>
+      <li><a href="#daily-flow">Daily Operating Flow</a></li>
+      <li><a href="#video-format">Video Format</a></li>
+      <li><a href="#platform">Platform Strategy</a></li>
+      <li><a href="#subagents">OMP Role-Based Subagents</a></li>
+      <li><a href="#dashboard">Dashboard Design</a></li>
+      <li><a href="#quality">Error Handling &amp; Quality Gates</a></li>
+      <li><a href="#analytics">Analytics &amp; Learning</a></li>
+      <li><a href="#scope-v1">Recommended v1 Scope</a></li>
+      <li><a href="#risks">Risks &amp; Tradeoffs</a></li>
+      <li><a href="#open-decisions">Open Implementation Decisions</a></li>
+      <li><a href="#acceptance">Acceptance Criteria</a></li>
+    </ol>
+  </nav>
+
+  <section id="goal">
+    <h2>Goal</h2>
+    <p>Design an OMP-driven automation system that generates fully fictional confession-style short-form stories, renders them as faceless vertical videos, prepares publish-ready assets for TikTok, Instagram Reels, and YouTube Shorts, and exposes an observer-only dashboard for monitoring pipeline health and outcomes.</p>
+  </section>
+
+  <section id="scope">
+    <h2>Scope</h2>
+    <div class="cards">
+      <div class="card do">
+        <h4>In Scope</h4>
+        <ul>
+          <li>Automated story generation for fictional confession-style content</li>
+          <li>Hybrid scoring and filtering before rendering</li>
+          <li>Vertical video rendering with a forum-inspired hook card and mood-matched backgrounds</li>
+          <li>Export-first publishing packages for TikTok, Reels, and Shorts</li>
+          <li>Observer-only operations dashboard for jobs and results</li>
+          <li>Analytics capture for prompt/template selection and content optimization</li>
+          <li>Role-based subagent orchestration inside OMP</li>
+        </ul>
+      </div>
+      <div class="card dont">
+        <h4>Out of Scope</h4>
+        <ul>
+          <li>Direct v1 platform posting APIs</li>
+          <li>Human approval gates as a normal publishing path</li>
+          <li>Comment automation or audience engagement bots</li>
+          <li>Model fine-tuning</li>
+          <li>Real Reddit scraping or reposting of real confessions</li>
+          <li>Forged Reddit UI replication</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="definition">
+    <h2>Product Definition</h2>
+    <div class="callout">
+      <strong>One-sentence:</strong> A fiction-first faceless short-video pipeline that generates confession-style stories, filters them through hybrid scoring, renders vertical videos with a forum-inspired hook card and mood-matched backgrounds, exports publish-ready assets for TikTok, Reels, and Shorts, and exposes an observer-only dashboard for monitoring pipeline health and outcomes.
+    </div>
+  </section>
+
+  <section id="decisions">
+    <h2>User Decisions Captured</h2>
+    <ul class="decisions">
+      <li><strong>Primary platforms:</strong> TikTok, Instagram Reels, YouTube Shorts</li>
+      <li><strong>Launch posture:</strong> balanced quality and scale</li>
+      <li><strong>Disclosure posture target:</strong> no disclosure focus</li>
+      <li><strong>Safety/product decision:</strong> internal content model remains fiction-first rather than pretending stories were scraped from Reddit</li>
+      <li><strong>Dashboard:</strong> include a minimal observer-only dashboard in v1</li>
+      <li><strong>Subagents:</strong> recommended, with a small fixed role-based team</li>
+    </ul>
+  </section>
+
+  <section id="principles">
+    <h2>Core Principles</h2>
+    <ol class="principles">
+      <li>
+        <strong>Fiction-first generation</strong>
+        <ul>
+          <li>Every story is original synthetic fiction.</li>
+          <li>The system must never depend on scraped Reddit content.</li>
+          <li>The content may evoke the confession-forum genre, but not claim provenance from a real post.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Forum-inspired hook card, not forged platform UI</strong>
+        <ul>
+          <li>The intro visual may use a discussion-forum-inspired layout.</li>
+          <li>It must not copy Reddit pixel-for-pixel.</li>
+          <li>It must not show fabricated vote counts, comment counts, awards, karma, or engagement metrics.</li>
+          <li>It must not use real subreddit names.</li>
+          <li>It must not use usernames that impersonate real people.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Autopilot by default</strong>
+        <ul>
+          <li>v1 should run without daily mandatory approvals.</li>
+          <li>Monitoring is allowed; human review is optional exception handling, not the main path.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Balanced quality and scale</strong>
+        <ul>
+          <li>The system should produce enough volume for testing and learning without flooding low-quality output.</li>
+          <li>Filtering quality gates should be cheap first, expensive second.</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Structured artifacts over giant prompts</strong>
+        <ul>
+          <li>Stories, scores, render plans, publishing bundles, and analytics must be represented as machine-readable artifacts.</li>
+        </ul>
+      </li>
+    </ol>
+  </section>
+
+  <section id="architecture">
+    <h2>High-Level Architecture</h2>
+    <p>The system should be implemented as a content factory pipeline rather than one large prompt.</p>
+
+    <div class="pipeline" aria-label="Pipeline stages">
+      <div class="step"><strong>1</strong>Story Generator</div>
+      <div class="step"><strong>2a</strong>Heuristic Gate</div>
+      <div class="step"><strong>2b</strong>LLM Judge</div>
+      <div class="step"><strong>3</strong>Script Formatter</div>
+      <div class="step"><strong>4</strong>Visual Composer</div>
+      <div class="step"><strong>5</strong>Export / Publish</div>
+      <div class="step"><strong>7</strong>Analytics</div>
+    </div>
+
+    <h3 id="arch-1">1. Story Generator</h3>
+    <p>Generates fictional confession-style stories from parameterized prompts.</p>
+    <p><strong>Inputs:</strong> tone · taboo/intensity band · ending type · approximate runtime target · platform targets · freshness constraints from recent published history</p>
+    <p><strong>Output:</strong> structured <code>story_package.json</code></p>
+
+    <h3 id="arch-2">2. Hybrid Scoring Layer</h3>
+    <p>Filters weak output before rendering.</p>
+    <h4>Stage A — heuristic gate</h4>
+    <p>Fast deterministic checks for: runtime fit · hook length · paragraph cadence · duplicate premise detection · banned or overused endings · readability and TTS fitness · structural completeness</p>
+    <h4>Stage B — LLM judge pass</h4>
+    <p>Single budgeted judge pass for surviving candidates, scoring: hook strength · emotional escalation · coherence · plausibility within the fictional frame · novelty · payoff/twist quality · risk of sounding obviously machine-written</p>
+    <p>This stage is batch-budgeted and should not be invoked blindly for every generated draft if the heuristic gate already rejects it.</p>
+
+    <h3 id="arch-3">3. Script Formatter</h3>
+    <p>Transforms accepted story packages into render-ready scene plans.</p>
+    <p>Outputs include: forum-inspired hook card copy · paragraph/story block segmentation · scene pacing metadata · CTA/outro variants · platform-specific text density overrides</p>
+
+    <h3 id="arch-4">4. Visual Composer</h3>
+    <p>Uses a faceless-video rendering pipeline to produce final vertical videos.</p>
+    <p><strong>Responsibilities:</strong> render intro hook card · render sequential story blocks · choose a background look based on mood tags · combine TTS with ambient BGM · produce platform-specific video variants if needed</p>
+
+    <h3 id="arch-5">5. Export / Publishing Packager</h3>
+    <p>Creates publish-ready bundles rather than posting directly in v1.</p>
+    <p>Outputs: MP4 render(s) · title variants · caption text · hashtag suggestions · scheduling metadata · manifest for later posting automation</p>
+
+    <h3 id="arch-6">6. Observer-Only Dashboard</h3>
+    <p>Displays pipeline state and results without becoming a daily approval surface.</p>
+
+    <h3 id="arch-7">7. Feedback / Analytics Layer</h3>
+    <p>Records outcomes and helps tune prompt families, selection heuristics, background choices, voices, pacing patterns, and hook shapes.</p>
+  </section>
+
+  <section id="data-model">
+    <h2>Canonical Data Model</h2>
+    <p>The core unit should be a structured story package.</p>
+
+    <div class="model">
+      <h3>story_package</h3>
+      <div class="field">
+        <span class="label">Required fields</span>
+        <div class="row">
+          <code>story_id</code><code>created_at</code><code>premise</code><code>hook</code><code>forum_card</code><code>confession_voice</code><code>story_blocks[]</code><code>twist</code><code>ending_mode</code><code>tone</code><code>intensity</code><code>background_mood</code><code>music_mood</code><code>tts_voice</code><code>cta</code><code>platform_variants</code><code>generation_prompt_version</code><code>freshness_fingerprint</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="model">
+      <h3>forum_card</h3>
+      <div class="field">
+        <span class="label">Required fields</span>
+        <div class="row">
+          <code>display_title</code><code>fictional_handle</code><code>fictional_community_label</code><code>relative_time_label</code><code>style_variant</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="model forbidden">
+      <h3>forum_card.forbidden</h3>
+      <div class="field">
+        <span class="label">Must never appear</span>
+        <div class="row">
+          <code>votes</code><code>comments_count</code><code>awards</code><code>karma</code><code>real_subreddit_reference</code><code>impersonating_username</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="model">
+      <h3>score_report</h3>
+      <div class="field">
+        <span class="label">Required fields</span>
+        <div class="row">
+          <code>story_id</code><code>heuristic_checks[]</code><code>heuristic_pass</code><code>judge_scores</code><code>judge_summary</code><code>accept_decision</code><code>reject_reasons[]</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="model">
+      <h3>render_package</h3>
+      <div class="field">
+        <span class="label">Required fields</span>
+        <div class="row">
+          <code>story_id</code><code>scene_plan</code><code>timing_map</code><code>background_assets</code><code>audio_assets</code><code>render_targets</code>
+        </div>
+      </div>
+    </div>
+
+    <div class="model">
+      <h3>publish_bundle</h3>
+      <div class="field">
+        <span class="label">Required fields</span>
+        <div class="row">
+          <code>story_id</code><code>platform</code><code>video_path</code><code>caption</code><code>title_options[]</code><code>hashtags[]</code><code>scheduled_at</code><code>status</code>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="daily-flow">
+    <h2>Daily Operating Flow</h2>
+    <p>Recommended daily batch:</p>
+    <ol class="steps">
+      <li>Generate 20-30 story candidates.</li>
+      <li>Run heuristic gate.</li>
+      <li>Run LLM judge on survivors.</li>
+      <li>Keep 3-8 finalists.</li>
+      <li>Render platform-ready assets.</li>
+      <li>Export 1-3 publishable assets per platform per day.</li>
+      <li>Record downstream performance.</li>
+    </ol>
+    <p>This supports balanced quality and scale without turning the system into a spam farm.</p>
+  </section>
+
+  <section id="video-format">
+    <h2>Video Format</h2>
+
+    <h3>Format</h3>
+    <ul>
+      <li>Primary format: <code>9:16</code> vertical</li>
+      <li>Runtime target: short-form social, optimized per platform</li>
+      <li>TikTok/Reels should bias toward faster hooks and shorter blocks</li>
+      <li>YouTube Shorts may allow slightly longer narrative pacing</li>
+    </ul>
+
+    <h3>Opening scene</h3>
+    <ul>
+      <li>forum-inspired hook card</li>
+      <li>large title/hook text</li>
+      <li>fictional handle and fictional community label</li>
+      <li>timestamp-style label allowed if obviously generic</li>
+      <li>maximum intro emphasis duration: brief and front-loaded</li>
+    </ul>
+
+    <h3>Body scenes</h3>
+    <ul>
+      <li>text presented in short paragraph blocks</li>
+      <li>1-3 sentences per block</li>
+      <li>subtle motion only; readability over flashy animation</li>
+      <li>mood-matched background per story</li>
+    </ul>
+
+    <h3>Background library</h3>
+    <p>Backgrounds may be static or looping video and should be tagged by mood, e.g.:</p>
+    <ul>
+      <li>eerie room</li>
+      <li>rainy window</li>
+      <li>dark hallway</li>
+      <li>empty street</li>
+      <li>VHS / static / glitch</li>
+    </ul>
+    <p>Backgrounds must preserve text contrast and never dominate the story text.</p>
+
+    <h3>Audio</h3>
+    <ul>
+      <li>TTS narration</li>
+      <li>low-volume ambient bed</li>
+      <li>optional sparse SFX at transitions or twist moments</li>
+      <li>audio choices should be tied to <code>background_mood</code> and <code>tone</code></li>
+    </ul>
+  </section>
+
+  <section id="platform">
+    <h2>Platform Strategy</h2>
+
+    <h3>Shared core</h3>
+    <p>All three platforms should share the same canonical story package and analytics identifiers.</p>
+
+    <h3>TikTok / Reels</h3>
+    <p>Bias toward:</p>
+    <ul>
+      <li>faster hook</li>
+      <li>shorter blocks</li>
+      <li>stronger pacing changes</li>
+      <li>more aggressive early retention optimization</li>
+    </ul>
+
+    <h3>YouTube Shorts</h3>
+    <p>Bias toward:</p>
+    <ul>
+      <li>slightly longer narrative arc</li>
+      <li>cleaner continuity between blocks</li>
+      <li>slightly less frantic pacing</li>
+    </ul>
+  </section>
+
+  <section id="subagents">
+    <h2>OMP Role-Based Subagents</h2>
+    <p>Use a small fixed team of role-based subagents rather than a large swarm.</p>
+
+    <ul class="roles">
+      <li><strong>Story Generator</strong> — creates candidate fictional stories</li>
+      <li><strong>Heuristic Gate</strong> — runs deterministic acceptance checks</li>
+      <li><strong>LLM Story Judge</strong> — scores survivors for quality</li>
+      <li><strong>Script Formatter</strong> — converts accepted stories into scene-ready story packages</li>
+      <li><strong>Visual Composer</strong> — renders videos and assets</li>
+      <li><strong>Export / Publisher</strong> — packages deliverables for each platform</li>
+      <li><strong>Analytics Tracker</strong> — records outcomes and summarizes trends</li>
+    </ul>
+
+    <h3>Orchestration guidance</h3>
+    <ul>
+      <li>Keep responsibilities stable per role</li>
+      <li>Parallelize independent stories, not every micro-step</li>
+      <li>Isolate failures by artifact stage</li>
+      <li>Use deterministic files between agents, not loose prose handoffs</li>
+    </ul>
+  </section>
+
+  <section id="dashboard">
+    <h2>Dashboard Design</h2>
+    <p>The dashboard is included in v1 as an observer-only ops console.</p>
+
+    <h3>Included screens</h3>
+    <ol class="screens">
+      <li>
+        <strong>Pipeline health</strong>
+        <ul>
+          <li>job counts by stage</li>
+          <li>failed / retrying jobs</li>
+          <li>current throughput</li>
+          <li>backlog depth</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Story inventory</strong>
+        <ul>
+          <li>hook preview</li>
+          <li>score summary</li>
+          <li>render status</li>
+          <li>platform bundle status</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Schedules and publishing state</strong>
+        <ul>
+          <li>what is queued</li>
+          <li>what is exported</li>
+          <li>what is published</li>
+          <li>what failed packaging</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Outcome monitoring</strong>
+        <ul>
+          <li>retention snapshots</li>
+          <li>completion rate</li>
+          <li>likes / comments / shares / save-rate where available</li>
+          <li>breakdowns by hook type, tone, twist, background mood, and voice</li>
+        </ul>
+      </li>
+      <li>
+        <strong>Logs and alerts</strong>
+        <ul>
+          <li>pipeline failures</li>
+          <li>repeated score rejects</li>
+          <li>render failures</li>
+          <li>missing asset conditions</li>
+        </ul>
+      </li>
+    </ol>
+
+    <h3>Explicitly excluded from v1 dashboard</h3>
+    <ul>
+      <li>mandatory approval workflow</li>
+      <li>regular approve / reject gating</li>
+      <li>in-dashboard editing</li>
+      <li>drag-and-drop workflow builders</li>
+      <li>large BI / analytics suite</li>
+      <li>complex user management</li>
+    </ul>
+  </section>
+
+  <section id="quality">
+    <h2>Error Handling &amp; Quality Gates</h2>
+
+    <h3>Generation rejects</h3>
+    <p>Reject stories if:</p>
+    <ul>
+      <li>the hook is weak or too long</li>
+      <li>pacing is flat</li>
+      <li>the story has no payoff</li>
+      <li>the premise is too similar to recent output</li>
+      <li>the runtime is mismatched to target platform</li>
+      <li>the text reads too obviously like low-quality machine output</li>
+    </ul>
+
+    <h3>Render rejects</h3>
+    <p>Reject or rerender if:</p>
+    <ul>
+      <li>hook card overflows</li>
+      <li>text density is too high</li>
+      <li>TTS timing mismatches scene timing</li>
+      <li>text / background contrast is poor</li>
+      <li>background overwhelms foreground text</li>
+      <li>forum-inspired card violates the no-forgery rules</li>
+    </ul>
+
+    <h3>No-forgery render gate</h3>
+    <p>The renderer must fail validation if any output includes:</p>
+    <ul>
+      <li>fabricated vote counts</li>
+      <li>fabricated comment counts</li>
+      <li>fabricated awards or karma</li>
+      <li>real subreddit names</li>
+      <li>usernames likely to impersonate real users</li>
+      <li>UI framing that materially suggests a real captured Reddit post</li>
+    </ul>
+
+    <h3>Operational alerts</h3>
+    <p>Raise alerts when:</p>
+    <ul>
+      <li>rejection rate spikes above baseline</li>
+      <li>render failures cluster by template</li>
+      <li>a single premise family dominates recent output</li>
+      <li>platform variants drift out of runtime bounds</li>
+    </ul>
+  </section>
+
+  <section id="analytics">
+    <h2>Analytics &amp; Learning</h2>
+    <p>v1 learning means analytics-driven selection, not model fine-tuning.</p>
+
+    <h3>Track per story</h3>
+    <ul>
+      <li>premise category</li>
+      <li>hook pattern</li>
+      <li>twist type</li>
+      <li>tone</li>
+      <li>intensity</li>
+      <li>background mood</li>
+      <li>TTS voice</li>
+      <li>runtime</li>
+      <li>heuristic scores</li>
+      <li>judge scores</li>
+      <li>final accept / reject</li>
+      <li>platform package outputs</li>
+      <li>downstream performance metrics</li>
+    </ul>
+
+    <h3>Use this data to tune</h3>
+    <ul>
+      <li>prompt families</li>
+      <li>seed prompts</li>
+      <li>hook templates</li>
+      <li>pacing patterns</li>
+      <li>voice selection</li>
+      <li>background selection</li>
+      <li>CTA variants</li>
+    </ul>
+
+    <p>Do <strong>not</strong> include model fine-tuning in v1.</p>
+  </section>
+
+  <section id="scope-v1">
+    <h2>Recommended v1 Scope</h2>
+    <div class="cards">
+      <div class="card do">
+        <h4>Include</h4>
+        <ul>
+          <li>story generation</li>
+          <li>hybrid scoring</li>
+          <li>video rendering</li>
+          <li>export package creation</li>
+          <li>observer-only dashboard</li>
+          <li>analytics capture</li>
+        </ul>
+      </div>
+      <div class="card dont">
+        <h4>Defer</h4>
+        <ul>
+          <li>direct platform posting as a hard requirement</li>
+          <li>multi-account management</li>
+          <li>comment automation</li>
+          <li>self-modifying autonomous prompt mutation</li>
+          <li>dashboard review queue as the main path</li>
+          <li>dozens of visual themes before the core pipeline works</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="risks">
+    <h2>Risks &amp; Tradeoffs</h2>
+    <ul class="risks">
+      <li>
+        <strong>Policy / trust risk</strong>
+        Because the target style resembles user confession content, the system should preserve a fiction-first internal model even if the public-facing copy is optimized for clicks. This reduces policy and trust risk relative to pretending stories were scraped from real users.
+      </li>
+      <li>
+        <strong>Creative consistency risk</strong>
+        Story quality will vary. The scoring layer and freshness constraints are required, not optional.
+      </li>
+      <li>
+        <strong>Automation risk</strong>
+        Autopilot increases the chance of low-quality repetition if freshness checks and analytics are weak.
+      </li>
+      <li>
+        <strong>Dashboard scope risk</strong>
+        A dashboard can easily become a second product. v1 must keep it as a thin operator console.
+      </li>
+    </ul>
+  </section>
+
+  <section id="open-decisions">
+    <h2>Open Implementation Decisions</h2>
+    <p>These are implementation choices, not product-definition gaps:</p>
+    <ul>
+      <li>exact storage format and persistence layer for story, score, render, and analytics artifacts</li>
+      <li>exact rendering stack details within the existing OMP / HyperFrames environment</li>
+      <li>exact dashboard framework and hosting model</li>
+      <li>exact scheduler mechanism for recurring generation / render / export jobs</li>
+      <li>exact publish-bundle schema details per platform</li>
+    </ul>
+  </section>
+
+  <section id="acceptance">
+    <h2>Acceptance Criteria</h2>
+    <p>A valid implementation plan must produce a system that:</p>
+    <ol class="criteria">
+      <li>generates only fictional confession-style story candidates</li>
+      <li>stores story candidates as structured artifacts</li>
+      <li>runs a two-stage hybrid scoring pipeline</li>
+      <li>renders a forum-inspired hook card without forged Reddit UI cues</li>
+      <li>produces publish-ready vertical video bundles for TikTok, Reels, and Shorts</li>
+      <li>exposes an observer-only dashboard for pipeline state and outcomes</li>
+      <li>records enough analytics to compare hook / tone / twist / background / voice performance</li>
+      <li>uses a small fixed set of role-based OMP subagents rather than an uncontrolled agent swarm</li>
+    </ol>
+  </section>
+
+  <footer class="colophon">
+    <span>Reddit-Style Confession Story Factory · Design Spec · v1</span>
+    <span>2026-06-26</span>
+  </footer>
+
+</main>
+</body>
+</html>
