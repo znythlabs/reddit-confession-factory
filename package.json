@@ -8,5 +8,8 @@
     "doctor": "bash scripts/doctor.sh",
     "test": "pnpm -r --parallel test",
     "build": "pnpm -r build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.1"
   }
 }
