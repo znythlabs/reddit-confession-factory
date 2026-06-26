@@ -25,3 +25,6 @@ export const ScoreReportSchema = z.object({
   accept_decision: z.enum(["accept", "reject"]),
   reject_reasons: z.array(z.string()),
 });
+export type HeuristicCheck = z.infer<typeof HeuristicCheckSchema>;
+export type JudgeScores = z.infer<typeof JudgeScoresSchema>;
+export type ScoreReport = z.infer<typeof ScoreReportSchema>;

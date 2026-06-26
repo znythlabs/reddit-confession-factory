@@ -37,3 +37,6 @@ export const StoryPackageSchema = z.object({
   generation_prompt_version: z.string().min(1),
   freshness_fingerprint: z.string().length(16),
 });
+export type ForumCard = z.infer<typeof ForumCardSchema>;
+export type StoryBlock = z.infer<typeof StoryBlockSchema>;
+export type StoryPackage = z.infer<typeof StoryPackageSchema>;

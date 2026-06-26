@@ -25,6 +25,22 @@ importers:
         specifier: ^1.6.0
         version: 1.6.1(@types/node@26.0.1)
 
+  packages/formatter:
+    dependencies:
+      '@rcf/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      tsx:
+        specifier: ^4.7.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.0
+        version: 1.6.1(@types/node@26.0.1)
+
   packages/generator:
     dependencies:
       '@rcf/core':

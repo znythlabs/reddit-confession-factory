@@ -26,3 +26,5 @@ export const RenderPackageSchema = z.object({
     })
   ),
 });
+export type ScenePlan = z.infer<typeof ScenePlanSchema>;
+export type RenderPackage = z.infer<typeof RenderPackageSchema>;
