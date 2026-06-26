@@ -1,0 +1,30 @@
+{
+  "story_id": "s_fixture_valid",
+  "created_at": "2026-06-26T00:00:00.000Z",
+  "premise": "A fictional confession about a building superintendent and a flickering basement light.",
+  "hook": "I should not have opened the basement door that night.",
+  "forum_card": {
+    "display_title": "Confession: basement door",
+    "fictional_handle": "throwaway_nightshift",
+    "fictional_community_label": "confessions",
+    "relative_time_label": "2 hours ago",
+    "style_variant": "dark-card"
+  },
+  "confession_voice": "first-person",
+  "story_blocks": [
+    { "index": 0, "text": "The basement light flickered for three nights.", "suggested_duration_s": 6 },
+    { "index": 1, "text": "I told myself it was just a bulb.", "suggested_duration_s": 4 },
+    { "index": 2, "text": "On the third night I went down.", "suggested_duration_s": 5 }
+  ],
+  "twist": "There was no bulb. The light was coming up the stairs.",
+  "ending_mode": "twist",
+  "tone": "unsettling",
+  "intensity": "medium",
+  "background_mood": "dark-hallway",
+  "music_mood": "low-tension",
+  "tts_voice": "am_michael",
+  "cta": "comment-your-take",
+  "platform_variants": { "tiktok_reels": { "pacing": "fast" }, "youtube_shorts": { "pacing": "medium" } },
+  "generation_prompt_version": "v1",
+  "freshness_fingerprint": "f1f1f1f1f1f1f1f1"
+}

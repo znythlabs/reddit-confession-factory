@@ -1,0 +1,32 @@
+{
+  "story_id": "s_fixture_forged",
+  "created_at": "2026-06-26T00:00:00.000Z",
+  "premise": "Forged-vote test fixture.",
+  "hook": "I should not have opened the basement door that night.",
+  "forum_card": {
+    "display_title": "Confession",
+    "fictional_handle": "throwaway_x",
+    "fictional_community_label": "confessions",
+    "relative_time_label": "2 hours ago",
+    "style_variant": "dark-card",
+    "votes": 1234,
+    "comments": 42,
+    "karma": 9001
+  },
+  "confession_voice": "first-person",
+  "story_blocks": [
+    { "index": 0, "text": "Block 1", "suggested_duration_s": 6 },
+    { "index": 1, "text": "Block 2", "suggested_duration_s": 4 }
+  ],
+  "twist": "The twist.",
+  "ending_mode": "twist",
+  "tone": "unsettling",
+  "intensity": "medium",
+  "background_mood": "dark-hallway",
+  "music_mood": "low-tension",
+  "tts_voice": "am_michael",
+  "cta": "comment-your-take",
+  "platform_variants": { "tiktok_reels": { "pacing": "fast" }, "youtube_shorts": { "pacing": "medium" } },
+  "generation_prompt_version": "v1",
+  "freshness_fingerprint": "f2f2f2f2f2f2f2f2"
+}
