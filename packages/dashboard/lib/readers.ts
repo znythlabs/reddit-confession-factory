@@ -1,8 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { paths, type StoryPackage, type ScoreReport, PublishBundleSchema } from "@rcf/core";
-
-type PublishBundle = ReturnType<typeof PublishBundleSchema.parse>;
+import { paths, type StoryPackage, type ScoreReport, type PublishBundle } from "@rcf/core";
 export type HealthCounts = { stories: number; scores: number; render: number; bundles: number; failed: number };
 
 export const readHealth = async (): Promise<HealthCounts> => {

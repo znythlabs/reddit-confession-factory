@@ -10,3 +10,5 @@ export const PublishBundleSchema = z.object({
   scheduled_at: z.string().datetime().optional(),
   status: z.enum(["draft", "ready", "posted", "failed"]),
 });
+
+export type PublishBundle = z.infer<typeof PublishBundleSchema>;

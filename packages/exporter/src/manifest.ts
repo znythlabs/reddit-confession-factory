@@ -1,8 +1,6 @@
 import { writeFile, mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { paths, PublishBundleSchema } from "@rcf/core";
-
-type PublishBundle = ReturnType<typeof PublishBundleSchema.parse>;
+import { paths, PublishBundleSchema, type PublishBundle } from "@rcf/core";
 
 export const writeStoryManifest = async (storyId: string): Promise<void> => {
   const dir = paths.bundleDir(storyId);

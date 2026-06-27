@@ -1,8 +1,6 @@
 import { getDb } from "./db.js";
 import { readFile } from "node:fs/promises";
-import { paths, type StoryPackage, PublishBundleSchema } from "@rcf/core";
-
-type PublishBundle = ReturnType<typeof PublishBundleSchema.parse>;
+import { paths, type StoryPackage, type PublishBundle, PublishBundleSchema } from "@rcf/core";
 export type OutcomeInput = {
   storyId: string;
   platform: "tiktok" | "instagram_reels" | "youtube_shorts";

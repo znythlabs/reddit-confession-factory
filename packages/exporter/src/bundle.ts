@@ -1,9 +1,7 @@
 import { mkdir, writeFile, stat, copyFile } from "node:fs/promises";
 import path from "node:path";
-import { PublishBundleSchema, type StoryPackage, type RenderPackage, paths } from "@rcf/core";
+import { PublishBundleSchema, type StoryPackage, type RenderPackage, type PublishBundle, paths } from "@rcf/core";
 import { buildCaption, buildHashtags, buildTitles } from "./captions.js";
-
-type PublishBundle = ReturnType<typeof PublishBundleSchema.parse>;
 
 export const writeBundle = async (
   rp: RenderPackage,
