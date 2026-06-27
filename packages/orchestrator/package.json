@@ -1,0 +1,31 @@
+{
+  "name": "@rcf/orchestrator",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": "./dist/index.js" },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "start": "tsx src/index.ts",
+    "batch": "tsx src/batch.ts"
+  },
+  "dependencies": {
+    "@rcf/core": "workspace:*",
+    "@rcf/generator": "workspace:*",
+    "@rcf/heuristic": "workspace:*",
+    "@rcf/judge": "workspace:*",
+    "@rcf/formatter": "workspace:*",
+    "@rcf/composer": "workspace:*",
+    "@rcf/exporter": "workspace:*",
+    "@rcf/analytics": "workspace:*",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node-cron": "^3.0.11",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  }
+}
