@@ -36,13 +36,20 @@ console.log("dev: running. Ctrl+C to stop.");
 const cleanup = () => {
   for (const c of [dashboard, orchestrator]) {
     try { c.kill(); } catch { /* already gone */ }
+// ponytail: when the dashboard fails to start (e.g. EADDRINUSE because an orphan
+// from a previous run is still bound to 3001), pnpm sometimes returns exit
+// code 0 even though the process is dead. Without a guard, dev.mjs tears down
+// the orchestrator with it. Wait a few seconds before treating the exit as
+// intentional so startup failures don't cascade.
+const STABILITY_MS = 5000;
+let dashboardStable = false;
+dashboard.on("exit", (code) => {
+  if (!dashboardStable) {
+    console.error(`dev: dashboard died during startup (code ${code}). Orchestrator stays up — fix the dashboard (see var/logs/dashboard.log) and restart pnpm dev.`);
+    process.exit(1);
   }
-};
-process.on("SIGINT", () => { cleanup(); process.exit(0); });
-process.on("SIGTERM", () => { cleanup(); process.exit(0); });
-
-const exit = await Promise.race([
-  new Promise((res) => dashboard.on("exit", (code) => res({ who: "dashboard", code }))),
+});
+setTimeout(() => { dashboardStable = true; }, STABILITY_MS);
   new Promise((res) => orchestrator.on("exit", (code) => res({ who: "orchestrator", code }))),
 ]);
 console.log(`dev: ${exit.who} exited with code ${exit.code}, cleaning up`);
