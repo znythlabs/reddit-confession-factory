@@ -18,7 +18,7 @@ export type GenerateSeed = {
 
 export const generateStoryPackage = async (
   seed: GenerateSeed,
-  llm: LlmClient = makeStubLlm("{}")
+  llm: LlmClient = makeStubLlm()
 ): Promise<StoryPackage> => {
   const raw = await llm.complete(
     [
