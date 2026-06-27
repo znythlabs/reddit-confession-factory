@@ -5,7 +5,7 @@
 // Ctrl+C cleans up both children.
 
 import { spawn } from "node:child_process";
-import { mkdirSync, openSync } from "node:fs";
+import { mkdirSync, openSync, rmSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,15 +15,15 @@ const VAR = process.env.RCF_VAR_DIR || path.join(ROOT, "var");
 const LOGS = path.join(VAR, "logs");
 mkdirSync(LOGS, { recursive: true });
 
-// ponytail: Next.js dev keeps the chunk graph in memory but the chunk IDs are
-// baked into the compiled .next/ on disk. After a \`pnpm --filter @rcf/dashboard
-// build\` renumbers chunks, the running dev server tries to require './43.js'
-// (or whatever the old ID was) and crashes with MODULE_NOT_FOUND. Wipe the
-// dashboard's .next/ before each \`pnpm dev\` so the in-memory and on-disk
-// states always start aligned.
-import { rmSync } from "node:fs";
-const dashboardNext = path.join(ROOT, "packages", "dashboard", ".next");
-rmSync(dashboardNext, { recursive: true, force: true });
+// ponytail: Next.js dev keeps the chunk graph in memory but chunk IDs are
+// baked into the compiled .next/ on disk. After a `pnpm --filter
+// @rcf/dashboard build` renumbers chunks, the running dev server references
+// the old IDs and crashes with `Error: Cannot find module './43.js'` on the
+// next request. Wipe `.next/` before each `pnpm dev` so the in-memory and
+// on-disk states always start aligned.
+rmSync(path.join(ROOT, "packages", "dashboard", ".next"), { recursive: true, force: true });
+
+const startChild = (pkg, script, logFile) => {
   const fd = openSync(logFile, "a");
   return spawn(PNPM, ["--filter", pkg, "run", script], {
     cwd: ROOT,
