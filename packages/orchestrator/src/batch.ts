@@ -65,28 +65,31 @@ export type BatchSummary = {
   failed: number;
 };
 
+type BatchOpts = { generateCount: number; judgeBudget: number };
+
 const STAGES = [
-  { pkg: "@rcf/generator", env: (o: { generateCount: number; judgeBudget: number }) => ({ RCF_GENERATE_COUNT: String(o.generateCount) }) },
-  { pkg: "@rcf/heuristic", env: () => ({}) },
-  { pkg: "@rcf/judge",     env: (o: { generateCount: number; judgeBudget: number }) => ({ RCF_JUDGE_BUDGET: String(o.judgeBudget) }) },
-  { pkg: "@rcf/formatter", env: () => ({}) },
-  { pkg: "@rcf/composer",  env: () => ({}) },
-  { pkg: "@rcf/exporter",  env: () => ({}) },
+  { pkg: "@rcf/generator", script: "start", env: (o: BatchOpts) => ({ RCF_GENERATE_COUNT: String(o.generateCount) }) },
+  { pkg: "@rcf/heuristic", script: "start", env: () => ({}) },
+  { pkg: "@rcf/judge",     script: "start", env: (o: BatchOpts) => ({ RCF_JUDGE_BUDGET: String(o.judgeBudget) }) },
+  { pkg: "@rcf/formatter", script: "start", env: () => ({}) },
+  { pkg: "@rcf/composer",  script: "start", env: () => ({}) },
+  { pkg: "@rcf/exporter",  script: "start", env: () => ({}) },
+  { pkg: "@rcf/analytics", script: "record", env: () => ({}) },
 ] as const;
 
-export const runDailyBatch = async (opts: { generateCount: number; judgeBudget: number }): Promise<BatchSummary> => {
+export const runDailyBatch = async (opts: BatchOpts): Promise<BatchSummary> => {
   const summary: BatchSummary = { generated: 0, accepted_by_gate: 0, accepted_by_judge: 0, rendered: 0, bundled: 0, failed: 0 };
   for (const s of STAGES) {
     try {
-      await run(s.pkg, "start", s.env(opts));
+      await run(s.pkg, s.script, s.env(opts));
     } catch (e) {
       summary.failed++;
-      console.error(`batch: ${s.pkg} failed:`, e instanceof Error ? e.message : e);
+      console.error(`batch: ${s.pkg} ${s.script} failed:`, e instanceof Error ? e.message : e);
     }
   }
   summary.generated = await countJson(paths.storiesDir());
   summary.accepted_by_gate = await countAccepted(paths.scoresDir());
-  summary.accepted_by_judge = await countAccepted(paths.scoresDir()); // judge re-reads, updates accept_decision
+  summary.accepted_by_judge = await countAccepted(paths.scoresDir()); // judge overwrites accept_decision
   summary.rendered = await countJson(paths.renderDir());
   summary.bundled = await countBundles();
   return summary;

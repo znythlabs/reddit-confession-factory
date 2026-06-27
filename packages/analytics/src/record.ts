@@ -1,6 +1,8 @@
 import { getDb } from "./db.js";
-import { readFile } from "node:fs/promises";
-import { paths, type StoryPackage, type PublishBundle, PublishBundleSchema } from "@rcf/core";
+import { readFile, readdir } from "node:fs/promises";
+import path from "node:path";
+import type { Dirent } from "node:fs";
+import { paths, type StoryPackage, type PublishBundle } from "@rcf/core";
 export type OutcomeInput = {
   storyId: string;
   platform: "tiktok" | "instagram_reels" | "youtube_shorts";
@@ -53,4 +55,24 @@ export const recordOutcome = (i: OutcomeInput): void => {
 export const recordBundle = async (bundle: PublishBundle): Promise<void> => {
   const story = JSON.parse(await readFile(paths.storyJson(bundle.story_id), "utf8")) as StoryPackage;
   await recordStory(story, bundle.platform);
+};
+
+export const recordAll = async (): Promise<number> => {
+  const root = paths.bundlesDir();
+  let dirs: Dirent[] = [];
+  try { dirs = await readdir(root, { withFileTypes: true }); } catch { return 0; }
+  let n = 0;
+  for (const sd of dirs) {
+    if (!sd.isDirectory()) continue;
+    const subs = await readdir(path.join(root, sd.name), { withFileTypes: true }).catch(() => []);
+    for (const s of subs) {
+      if (!s.isDirectory()) continue;
+      try {
+        const raw = await readFile(path.join(root, sd.name, s.name, "bundle.json"), "utf8");
+        await recordBundle(JSON.parse(raw) as PublishBundle);
+        n++;
+      } catch { /* skip incomplete */ }
+    }
+  }
+  return n;
 };

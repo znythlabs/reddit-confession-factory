@@ -1,5 +1,5 @@
 export { summarize } from "./summarize.js";
-export { recordOutcome, recordBundle, recordStory } from "./record.js";
+export { recordOutcome, recordBundle, recordStory, recordAll } from "./record.js";
 export type { OutcomeInput } from "./record.js";
 export { recentHookPatterns } from "./freshness.js";
 
