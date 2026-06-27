@@ -6,6 +6,7 @@
   "scripts": {
     "init": "bash scripts/init.sh",
     "doctor": "bash scripts/doctor.sh",
+    "smoke": "bash scripts/smoke.sh",
     "test": "pnpm -r --parallel test",
     "build": "pnpm -r build"
   },

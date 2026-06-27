@@ -16,7 +16,7 @@ export const judgeSurvivors = async (
   scorePaths: string[],
   opts: { budgetMax: number; llm?: JudgeLlm } = { budgetMax: 8 }
 ): Promise<ScoreReport[]> => {
-  const llm = opts.llm ?? makeStubJudgeLlm("{}");
+  const llm = opts.llm ?? makeStubJudgeLlm();
   const out: ScoreReport[] = [];
   const limited = scorePaths.slice(0, opts.budgetMax);
   for (const sp of limited) {

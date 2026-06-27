@@ -6,5 +6,5 @@ export const structure = (s: StoryPackage) => {
     s.twist.length > 0 &&
     s.story_blocks.length >= 2 &&
     s.story_blocks.every((b, i) => b.index === i);
-  return { name: "structure", pass: ok };
+  return { name: "structure", pass: ok, detail: ok ? "ok" : "missing premise/twist/blocks/index" };
 };
