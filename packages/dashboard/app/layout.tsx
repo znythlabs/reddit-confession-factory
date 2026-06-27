@@ -1,21 +1,19 @@
 import "./globals.css";
 import type { ReactNode } from "react";
+import { Sidebar } from "./Sidebar";
+import { readHealth } from "../lib/readers";
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const h = await readHealth();
   return (
     <html lang="en">
-      <body className="bg-parchment text-ink min-h-screen">
-        <header className="border-b border-neutral-300 px-6 py-4 flex items-center justify-between">
-          <h1 className="font-semibold">RCF · Observer Console</h1>
-          <nav className="text-sm space-x-4">
-            <a href="/">Health</a>
-            <a href="/stories">Stories</a>
-            <a href="/schedules">Schedules</a>
-            <a href="/outcomes">Outcomes</a>
-            <a href="/logs">Logs</a>
-          </nav>
-        </header>
-        <main className="p-6">{children}</main>
+      <body className="bg-charcoal text-parchment min-h-screen">
+        <Sidebar storyCount={h.generated} />
+        <main className="ml-60 min-h-screen">
+          <div className="max-w-7xl mx-auto px-8 py-8">{children}</div>
+        </main>
       </body>
     </html>
   );

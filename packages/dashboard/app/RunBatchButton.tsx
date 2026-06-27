@@ -22,34 +22,65 @@ export function RunBatchButton() {
     }
   };
 
-  const label = status === "idle" ? "Run batch now"
-    : status === "running" ? "Running…"
-    : status === "ok" ? "Done — run again"
-    : "Failed — retry";
+  const label =
+    status === "idle"
+      ? "Run batch now"
+      : status === "running"
+      ? "Running\u2026"
+      : status === "ok"
+      ? "Done \u2014 run again"
+      : "Failed \u2014 retry";
+
+  const pillClass =
+    status === "running"
+      ? "rcf-pill-running"
+      : status === "ok"
+      ? "rcf-pill-ok"
+      : status === "error"
+      ? "rcf-pill-reject"
+      : "rcf-pill-pending";
 
   return (
-    <div className="mt-6 border border-neutral-300 rounded p-4 bg-white">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <div className="font-semibold">Manual batch</div>
-          <div className="text-xs text-neutral-500">
-            Runs the full pipeline once (generator → heuristic → judge → formatter → composer → exporter → analytics).
-            Bypasses the 9 AM cron.
+    <section className="rcf-card p-5">
+      <div className="flex items-center justify-between gap-6">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-semibold text-parchment">Operator Control</span>
+            <span className={pillClass}>
+              <span
+                className={
+                  "w-1.5 h-1.5 rounded-full " +
+                  (status === "running"
+                    ? "bg-warning"
+                    : status === "ok"
+                    ? "bg-success"
+                    : status === "error"
+                    ? "bg-danger"
+                    : "bg-parchment-muted")
+                }
+              />
+              {status}
+            </span>
           </div>
+          <p className="text-xs text-parchment-muted leading-relaxed">
+            Runs the full pipeline once (generator &rarr; heuristic &rarr; judge &rarr; formatter
+            &rarr; composer &rarr; exporter &rarr; analytics). Bypasses the 9 AM cron.
+          </p>
         </div>
         <button
           onClick={run}
           disabled={status === "running"}
-          className="px-4 py-2 rounded bg-ink text-parchment text-sm font-medium disabled:opacity-50"
+          className="shrink-0 px-5 py-2.5 rounded-md bg-accent hover:bg-accent-soft text-accent-fg text-sm font-medium tracking-wide transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-accent shadow-card"
         >
           {label}
         </button>
       </div>
+
       {output !== null && (
-        <pre className="mt-3 text-xs bg-neutral-50 border border-neutral-200 rounded p-2 overflow-x-auto">
+        <pre className="mt-4 text-[11px] font-mono bg-panel-soft border border-white/5 rounded-md p-3 overflow-x-auto text-parchment-muted leading-relaxed">
           {JSON.stringify(output, null, 2)}
         </pre>
       )}
-    </div>
+    </section>
   );
 }

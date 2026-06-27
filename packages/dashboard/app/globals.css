@@ -1,3 +1,72 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  html, body {
+    background-color: #0e0c0a;
+    color: #e8dfd0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    /* Subtle grid pattern for operator-console feel */
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 32px 32px;
+    background-attachment: fixed;
+  }
+
+  /* Custom scrollbar for the dark theme */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #0e0c0a;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2520;
+    border-radius: 5px;
+    border: 2px solid #0e0c0a;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3a332c;
+  }
+}
+
+@layer components {
+  /* Reusable card surface */
+  .rcf-card {
+    @apply bg-panel border border-white/5 rounded-lg shadow-card;
+  }
+
+  /* Section header label */
+  .rcf-label {
+    @apply text-[10px] uppercase tracking-[0.14em] text-parchment-muted font-medium;
+  }
+
+  /* Status pill base */
+  .rcf-pill {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium border;
+  }
+  .rcf-pill-ok {
+    @apply rcf-pill border-success/30 text-success bg-success/10;
+  }
+  .rcf-pill-reject {
+    @apply rcf-pill border-danger/40 text-danger bg-danger/10;
+  }
+  .rcf-pill-running {
+    @apply rcf-pill border-warning/30 text-warning bg-warning/10;
+  }
+  .rcf-pill-pending {
+    @apply rcf-pill border-white/10 text-parchment-muted bg-white/[0.03];
+  }
+  .rcf-pill-accent {
+    @apply rcf-pill border-accent/40 text-accent-fg bg-accent/15;
+  }
+}

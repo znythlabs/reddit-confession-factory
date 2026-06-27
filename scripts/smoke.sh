@@ -23,11 +23,11 @@ cat > "$STORY_PATH" <<'JSON'
   },
   "confession_voice": "first-person",
   "story_blocks": [
-    { "index": 0, "text": "The lobby key felt wrong in my hand when I lifted it from the rack.", "suggested_duration_s": 8 },
+    { "index": 0, "text": "The lobby key felt wrong in my hand when I lifted it from the rack.", "suggested_duration_s": 9 },
     { "index": 1, "text": "I turned it anyway because the tenants were waiting inside the building.", "suggested_duration_s": 8 },
-    { "index": 2, "text": "The door opened into the wrong hallway of the wrong building entirely.", "suggested_duration_s": 8 },
-    { "index": 3, "text": "I walked a few steps before I noticed my own name on the mailbox downstairs.", "suggested_duration_s": 8 },
-    { "index": 4, "text": "It was my building. It had always been my building for twenty quiet years.", "suggested_duration_s": 8 }
+    { "index": 2, "text": "The door opened into the wrong hallway of the wrong building entirely.", "suggested_duration_s": 9 },
+    { "index": 3, "text": "I walked a few steps before I noticed my own name on the mailbox downstairs.", "suggested_duration_s": 9 },
+    { "index": 4, "text": "It was my building. It had always been my building for twenty quiet years.", "suggested_duration_s": 10 }
   ],
   "twist": "It was my building. It had always been my building and I had forgotten the shape of home.",
   "ending_mode": "twist",
