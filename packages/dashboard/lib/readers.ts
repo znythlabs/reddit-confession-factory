@@ -1,6 +1,12 @@
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { paths, type StoryPackage, type ScoreReport, type PublishBundle } from "@rcf/core";
+// ponytail: the dashboard process starts in packages/dashboard, so paths.root's
+// fallback (process.cwd()/var) resolves to packages/dashboard/var — which is empty.
+// Force the workspace var/ so the dashboard sees what the batch wrote.
+if (!process.env.RCF_VAR_DIR) {
+  process.env.RCF_VAR_DIR = path.resolve(process.cwd(), "../..", "var");
+}
 export type HealthCounts = { stories: number; scores: number; render: number; bundles: number; failed: number };
 
 export const readHealth = async (): Promise<HealthCounts> => {

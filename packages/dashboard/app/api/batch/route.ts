@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import "../../../lib/env";
+ import { NextResponse } from "next/server";
 import { spawn } from "node:child_process";
 import { appendFile, mkdir } from "node:fs/promises";
 import path from "node:path";

@@ -1,4 +1,5 @@
-import { readHealth } from "../lib/readers";
+import "../lib/env";
+ import { readHealth } from "../lib/readers";
 import { RunBatchButton } from "./RunBatchButton";
 
 export const dynamic = "force-dynamic";
