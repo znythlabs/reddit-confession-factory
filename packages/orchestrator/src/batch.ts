@@ -90,6 +90,9 @@ export const runDailyBatch = async (opts: BatchOpts): Promise<BatchSummary> => {
   summary.generated = await countJson(paths.storiesDir());
   summary.accepted_by_gate = await countAccepted(paths.scoresDir());
   summary.accepted_by_judge = await countAccepted(paths.scoresDir()); // judge overwrites accept_decision
+  // Counts render/*.json, which formatter produces (a "render package"
+  // is a JSON spec, not an MP4). Composer would produce actual MP4s
+  // but requires HyperFrames, which v1 doesn't ship.
   summary.rendered = await countJson(paths.renderDir());
   summary.bundled = await countBundles();
   return summary;
