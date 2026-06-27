@@ -1,12 +1,9 @@
-import { summarize } from "./summarize.js";
-import { recordOutcome, recordBundle } from "./record.js";
+export { summarize } from "./summarize.js";
+export { recordOutcome, recordBundle, recordStory } from "./record.js";
+export type { OutcomeInput } from "./record.js";
+export { recentHookPatterns } from "./freshness.js";
 
-const main = async () => {
-  const sum = summarize();
-  console.log(JSON.stringify(sum, null, 2));
-};
-
-main().catch((e) => {
-  console.error(e);
-  process.exit(1);
-});
+if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1].replace(/\\/g, "/")}`).href) {
+  const { summarize } = await import("./summarize.js");
+  console.log(JSON.stringify(summarize(), null, 2));
+}
