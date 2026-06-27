@@ -27,4 +27,26 @@ describe("runHeuristicGate", () => {
     expect(r.accept_decision).toBe("reject");
     expect(r.reject_reasons.some((x) => x.includes("real subreddit"))).toBe(true);
   });
+
+  it("rejects stories over the 60-second runtime maximum", async () => {
+    const tooLong = {
+      ...valid,
+      story_blocks: valid.story_blocks.map((b) => ({ ...b, suggested_duration_s: 25 })),
+    } as StoryPackage;
+    const r = await runHeuristicGate(tooLong);
+    expect(r.accept_decision).toBe("reject");
+    expect(r.reject_reasons.some((x) => x.includes("runtime-fit"))).toBe(true);
+  });
+
+  it("rejects stories outside the required word count range", async () => {
+    const tooShort = {
+      ...valid,
+      hook: "I opened the wrong door.",
+      story_blocks: valid.story_blocks.map((b) => ({ ...b, text: "Something felt wrong." })),
+      twist: "The key was mine.",
+    } as StoryPackage;
+    const r = await runHeuristicGate(tooShort);
+    expect(r.accept_decision).toBe("reject");
+    expect(r.reject_reasons.some((x) => x.includes("word-count"))).toBe(true);
+  });
 });

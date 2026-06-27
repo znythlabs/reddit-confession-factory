@@ -66,6 +66,11 @@ export const formatStoryPackage = async (
     text: ctaText(story.cta),
   });
 
+  const finalRuntime = cursor + outroDuration;
+  if (finalRuntime > 60) {
+    throw new Error(`render runtime exceeds 60s: ${finalRuntime.toFixed(1)}s`);
+  }
+
   const out = (opts.outDir ?? paths.renderDir()) + `/${story.story_id}_${opts.platform}.mp4`;
   const pkg = RenderPackageSchema.parse({
     story_id: story.story_id,

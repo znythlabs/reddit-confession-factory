@@ -23,6 +23,7 @@ const baseStory = {
   story_blocks: [
     { index: 0, text: "It was the third night in a row the basement light flickered.", suggested_duration_s: 6 },
     { index: 1, text: "I told myself it was just a bulb.", suggested_duration_s: 4 },
+    { index: 2, text: "I went down to check it on the third night.", suggested_duration_s: 5 },
   ],
   twist: "There was no bulb. The light had been coming up the stairs.",
   ending_mode: "twist",

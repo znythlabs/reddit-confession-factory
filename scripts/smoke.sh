@@ -12,8 +12,8 @@ cat > "$STORY_PATH" <<'JSON'
 {
   "story_id": "s_smoke0001",
   "created_at": "2026-06-26T00:00:00.000Z",
-  "premise": "A late-night confession about the wrong apartment key.",
-  "hook": "I should not have used the lobby key that night.",
+  "premise": "A late-night confession about the wrong apartment key from a fictional superintendent.",
+  "hook": "I should not have used the lobby key that third late night shift at all.",
   "forum_card": {
     "display_title": "Confession: wrong key",
     "fictional_handle": "throwaway_lobby",
@@ -23,11 +23,13 @@ cat > "$STORY_PATH" <<'JSON'
   },
   "confession_voice": "first-person",
   "story_blocks": [
-    { "index": 0, "text": "The lobby key felt wrong in my hand.", "suggested_duration_s": 6 },
-    { "index": 1, "text": "I turned it anyway.", "suggested_duration_s": 3 },
-    { "index": 2, "text": "The door opened into the wrong building.", "suggested_duration_s": 7 }
+    { "index": 0, "text": "The lobby key felt wrong in my hand when I lifted it from the rack.", "suggested_duration_s": 8 },
+    { "index": 1, "text": "I turned it anyway because the tenants were waiting inside the building.", "suggested_duration_s": 8 },
+    { "index": 2, "text": "The door opened into the wrong hallway of the wrong building entirely.", "suggested_duration_s": 8 },
+    { "index": 3, "text": "I walked a few steps before I noticed my own name on the mailbox downstairs.", "suggested_duration_s": 8 },
+    { "index": 4, "text": "It was my building. It had always been my building for twenty quiet years.", "suggested_duration_s": 8 }
   ],
-  "twist": "It was my building. It had always been my building.",
+  "twist": "It was my building. It had always been my building and I had forgotten the shape of home.",
   "ending_mode": "twist",
   "tone": "unsettling",
   "intensity": "medium",
