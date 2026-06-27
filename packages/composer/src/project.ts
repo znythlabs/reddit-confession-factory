@@ -12,7 +12,14 @@ export const scaffoldProject = async (rp: RenderPackage, story: StoryPackage): P
   await writeFile(path.join(projectDir, "hook-card.html"), renderHookCardHtml(story), "utf8");
   await writeFile(
     path.join(projectDir, "render.json"),
-    JSON.stringify({ ...rp, background_assets: [backgroundPathFor(story.background_mood)] }, null, 2)
+    JSON.stringify(
+      {
+        ...rp,
+        background_assets: [backgroundPathFor(story.background_mood, story.story_id)],
+      },
+      null,
+      2
+    )
   );
   return projectDir;
 };
