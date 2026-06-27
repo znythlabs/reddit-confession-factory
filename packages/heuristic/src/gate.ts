@@ -1,6 +1,7 @@
 import { ScoreReportSchema, type StoryPackage, type ScoreReport, paths } from "@rcf/core";
 import { writeFile, mkdir } from "node:fs/promises";
 import { runtimeFit } from "./checks/runtime-fit.js";
+import { wordCount } from "./checks/word-count.js";
 import { hookLength } from "./checks/hook-length.js";
 import { cadence } from "./checks/cadence.js";
 import { duplicate } from "./checks/duplicate.js";
@@ -13,6 +14,7 @@ export const runHeuristicGate = async (story: StoryPackage): Promise<ScoreReport
   const forgery = noForgery(story);
   const checks = await Promise.all([
     runtimeFit(story),
+    wordCount(story),
     hookLength(story),
     cadence(story),
     duplicate(story),
