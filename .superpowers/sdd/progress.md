@@ -1,2 +1,15 @@
 # Subagent-Driven Development Progress
 
+Task 1: complete (commits 14b2819..66b4d37, review clean)
+Task 2: complete (commits 66b4d37..f9dd555, review clean)
+Task 3: complete (commits f9dd555..8e93ddc, review clean)
+Task 4: complete (commits 8e93ddc..95bedb0, review clean)
+Task 5: complete (commits 95bedb0..46725cf, review clean)
+Task 6: complete (commits 46725cf..304f917, review clean)
+Task 7: complete (commits 304f917..60629d8, review clean)
+Task 8: complete (commits 60629d8..8e67091, review clean)
+Task 9: complete (commits 8e67091..6800bf0, review clean)
+Task 10: complete (commits 6800bf0..6d3acc1, review clean)
+Task 11: complete (commits 6d3acc1..641f2d7, review clean)
+Task 12: complete (commits 641f2d7..ee0ea87, smoke green: heuristic 1/0, judge 1/1, formatter 2 render pkgs)
+Task 13: complete (README quickstart + role map + guardrails)
