@@ -15,7 +15,15 @@ const VAR = process.env.RCF_VAR_DIR || path.join(ROOT, "var");
 const LOGS = path.join(VAR, "logs");
 mkdirSync(LOGS, { recursive: true });
 
-const startChild = (pkg, script, logFile) => {
+// ponytail: Next.js dev keeps the chunk graph in memory but the chunk IDs are
+// baked into the compiled .next/ on disk. After a \`pnpm --filter @rcf/dashboard
+// build\` renumbers chunks, the running dev server tries to require './43.js'
+// (or whatever the old ID was) and crashes with MODULE_NOT_FOUND. Wipe the
+// dashboard's .next/ before each \`pnpm dev\` so the in-memory and on-disk
+// states always start aligned.
+import { rmSync } from "node:fs";
+const dashboardNext = path.join(ROOT, "packages", "dashboard", ".next");
+rmSync(dashboardNext, { recursive: true, force: true });
   const fd = openSync(logFile, "a");
   return spawn(PNPM, ["--filter", pkg, "run", script], {
     cwd: ROOT,
