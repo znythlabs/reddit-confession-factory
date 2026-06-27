@@ -9,7 +9,7 @@
     "build": "tsc",
     "test": "vitest run",
     "start": "tsx src/index.ts",
-    "batch": "tsx src/batch.ts"
+    "batch": "tsx src/batch-cli.ts"
   },
   "dependencies": {
     "@rcf/core": "workspace:*",

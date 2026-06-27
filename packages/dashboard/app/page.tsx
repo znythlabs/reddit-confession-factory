@@ -1,4 +1,5 @@
 import { readHealth } from "../lib/readers";
+import { RunBatchButton } from "./RunBatchButton";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function Page() {
         ))}
       </div>
       <p className="mt-6 text-sm text-neutral-600">Observer only. No approval actions.</p>
+      <RunBatchButton />
     </section>
   );
 }

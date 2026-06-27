@@ -6,10 +6,15 @@ import { paths, type ScoreReport } from "@rcf/core";
 
 const pexec = promisify(execFile);
 
+// ponytail: on Windows, node-spawn needs the .cmd extension to find pnpm via CreateProcess.
+// bash looks it up by name in PATH, but execFile does not.
+const PNPM = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+
 const run = (pkg: string, script: string, env: Record<string, string> = {}) =>
-  pexec("pnpm", ["--filter", pkg, "run", script], {
+  pexec(PNPM, ["--filter", pkg, "run", script], {
     cwd: path.resolve(process.cwd()),
     env: { ...process.env, ...env },
+    shell: true,
   });
 
 const countJson = async (dir: string): Promise<number> => {

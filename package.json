@@ -7,6 +7,8 @@
     "init": "bash scripts/init.sh",
     "doctor": "bash scripts/doctor.sh",
     "smoke": "bash scripts/smoke.sh",
+    "batch": "bash scripts/batch.sh",
+    "dev": "bash scripts/dev.sh",
     "test": "pnpm -r test",
     "build": "pnpm -r build"
   },
