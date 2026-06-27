@@ -4,7 +4,7 @@ import { paths, type RenderPackage, type StoryPackage } from "@rcf/core";
 import { renderRenderPackage } from "./render.js";
 
 const main = async () => {
-  const files = (await readdir(paths.renderDir())).filter((f) => f.endsWith(".json"));
+  const files = (await readdir(paths.renderDir()).catch(() => [] as string[])).filter((f) => f.endsWith(".json"));
   let ok = 0;
   let failed = 0;
   for (const f of files) {
@@ -14,7 +14,8 @@ const main = async () => {
       await renderRenderPackage(rp, story);
       ok++;
     } catch (e) {
-      console.error(`render failed for ${rp.story_id}:`, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error(`render failed for ${rp.story_id}: ${msg.slice(0, 200)}`);
       failed++;
     }
   }
@@ -22,6 +23,7 @@ const main = async () => {
 };
 
 main().catch((e) => {
-  console.error(e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`composer: error: ${msg.slice(0, 200)}`);
   process.exit(1);
 });

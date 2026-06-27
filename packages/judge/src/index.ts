@@ -5,7 +5,8 @@ import { judgeSurvivors } from "./judge.js";
 
 const main = async () => {
   const dir = paths.scoresDir();
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
+  let files: string[] = [];
+  try { files = (await readdir(dir)).filter((f) => f.endsWith(".json")); } catch { /* empty dir */ }
   const allPaths = files.map((f) => path.join(dir, f));
   const reports = await judgeSurvivors(allPaths, { budgetMax: Number(process.env.RCF_JUDGE_BUDGET ?? "8") });
   const accepted = reports.filter((r) => r.accept_decision === "accept").length;
@@ -13,6 +14,7 @@ const main = async () => {
 };
 
 main().catch((e) => {
-  console.error(e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`judge: error: ${msg.slice(0, 200)}`);
   process.exit(1);
 });

@@ -8,15 +8,20 @@ export const summarize = (): {
   byVoice: Array<{ key: string; avg_completion: number; n: number }>;
 } => {
   const db = getDb();
-  const group = (col: string) =>
-    db
-      .prepare(
-        `SELECT ${col} AS key, AVG(o.completion_rate) AS avg_completion, COUNT(*) AS n
-         FROM outcomes o JOIN stories s ON s.story_id = o.story_id
-         WHERE s.${col} IS NOT NULL
-         GROUP BY ${col} ORDER BY avg_completion DESC`
-      )
-      .all() as Array<{ key: string; avg_completion: number; n: number }>;
+  const group = (col: string) => {
+    try {
+      return db
+        .prepare(
+          `SELECT ${col} AS key, AVG(o.completion_rate) AS avg_completion, COUNT(*) AS n
+           FROM outcomes o JOIN stories s ON s.story_id = o.story_id
+           WHERE s.${col} IS NOT NULL
+           GROUP BY ${col} ORDER BY avg_completion DESC`
+        )
+        .all() as Array<{ key: string; avg_completion: number; n: number }>;
+    } catch {
+      return [] as Array<{ key: string; avg_completion: number; n: number }>;
+    }
+  };
   return {
     byHookPattern: group("hook_pattern"),
     byTone: group("tone"),

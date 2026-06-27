@@ -4,7 +4,7 @@ import { paths, type StoryPackage, type ScoreReport } from "@rcf/core";
 import { formatStoryPackage } from "./format.js";
 
 const main = async () => {
-  const scoreFiles = (await readdir(paths.scoresDir())).filter((f) => f.endsWith(".json"));
+  const scoreFiles = (await readdir(paths.scoresDir()).catch(() => [] as string[])).filter((f) => f.endsWith(".json"));
   const platforms: ("tiktok_reels" | "youtube_shorts")[] = ["tiktok_reels", "youtube_shorts"];
   let count = 0;
   for (const f of scoreFiles) {
@@ -20,6 +20,7 @@ const main = async () => {
 };
 
 main().catch((e) => {
-  console.error(e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`formatter: error: ${msg.slice(0, 200)}`);
   process.exit(1);
 });

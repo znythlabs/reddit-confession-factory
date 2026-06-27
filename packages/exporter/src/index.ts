@@ -10,7 +10,7 @@ const PLATFORM_BY_TARGET: Record<string, "tiktok" | "instagram_reels" | "youtube
 };
 
 const main = async () => {
-  const files = (await readdir(paths.renderDir())).filter((f) => f.endsWith(".json"));
+  const files = (await readdir(paths.renderDir()).catch(() => [] as string[])).filter((f) => f.endsWith(".json"));
   const seen = new Set<string>();
   for (const f of files) {
     const rp = JSON.parse(await readFile(path.join(paths.renderDir(), f), "utf8")) as RenderPackage;
@@ -24,6 +24,7 @@ const main = async () => {
 };
 
 main().catch((e) => {
-  console.error(e);
+  const msg = e instanceof Error ? e.message : String(e);
+  console.error(`exporter: error: ${msg.slice(0, 200)}`);
   process.exit(1);
 });

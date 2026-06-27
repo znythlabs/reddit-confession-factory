@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, rm } from "node:fs/promises";
 import { paths, type ScoreReport } from "@rcf/core";
 
 const pexec = promisify(execFile);
@@ -16,6 +16,10 @@ const run = (pkg: string, script: string, env: Record<string, string> = {}) =>
     env: { ...process.env, ...env },
     shell: true,
   });
+
+// ponytail: Node's promisify(execFile) attaches .stderr to the rejection. We type it
+// as a named const so the cast is documented at the call site, not inlined.
+type ExecError = Error & { stderr?: string | Buffer; stdout?: string | Buffer };
 
 const countJson = async (dir: string): Promise<number> => {
   try {
@@ -61,6 +65,19 @@ const countBundles = async (): Promise<number> => {
   }
 };
 
+const clearArtifacts = async (): Promise<void> => {
+  // Each batch starts from an empty artifacts tree so BatchSummary counts reflect
+  // this run only. Keep the directories themselves — the downstream CLIs assume
+  // paths.storiesDir()/scoresDir()/etc. exist when they readdir; only the files
+  // are wiped. SQLite (var/analytics.sqlite) is intentionally preserved.
+  for (const dir of [paths.storiesDir(), paths.scoresDir(), paths.renderDir(), paths.bundlesDir()]) {
+    try {
+      const files = await readdir(dir);
+      await Promise.all(files.map((f) => rm(path.join(dir, f), { recursive: true, force: true })));
+    } catch { /* dir might not exist yet */ }
+  }
+};
+
 export type BatchSummary = {
   generated: number;
   accepted_by_gate: number;
@@ -83,13 +100,18 @@ const STAGES = [
 ] as const;
 
 export const runDailyBatch = async (opts: BatchOpts): Promise<BatchSummary> => {
+  await clearArtifacts();
   const summary: BatchSummary = { generated: 0, accepted_by_gate: 0, accepted_by_judge: 0, rendered: 0, bundled: 0, failed: 0 };
   for (const s of STAGES) {
     try {
       await run(s.pkg, s.script, s.env(opts));
-    } catch (e) {
+    } catch (raw) {
       summary.failed++;
-      console.error(`batch: ${s.pkg} ${s.script} failed:`, e instanceof Error ? e.message : e);
+      const e = raw as ExecError;
+      const stderr = e.stderr ? e.stderr.toString().trim() : "";
+      const tail = stderr ? stderr.split("\n").slice(-5).join(" | ") : "";
+      console.error(`batch: ${s.pkg} ${s.script} failed: ${e.message ?? raw}`);
+      if (tail) console.error(`  stderr: ${tail}`);
     }
   }
   summary.generated = await countJson(paths.storiesDir());

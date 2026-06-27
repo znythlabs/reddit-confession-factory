@@ -5,7 +5,8 @@ import { runHeuristicGate } from "./gate.js";
 
 const main = async () => {
   const dir = paths.storiesDir();
-  const files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
+  let files: string[] = [];
+  try { files = (await readdir(dir)).filter((f) => f.endsWith(".json")); } catch { /* empty dir */ }
   let accepted = 0;
   let rejected = 0;
   for (const f of files) {

@@ -19,6 +19,9 @@ const main = async () => {
 };
 
 main().catch((e) => {
-  console.error(e);
+  // ponytail: console.error(e) trips a Node 24 util.inspect bug when e has a getter
+  // that returns undefined. Logging just the message string is safe and still actionable.
+  // Use console.error so the orchestrator's stderr-tail capture sees it.
+  console.error(`generator: error: ${e?.constructor?.name ?? "Error"}: ${String(e?.message ?? e).slice(0, 200)}`);
   process.exit(1);
 });
