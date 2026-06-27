@@ -1,0 +1,351 @@
+# Review package: 46725cf..304f917
+
+## Commits
+304f917 feat(formatter): script + scene planner with per-platform pacing
+
+## Files changed
+ packages/core/src/schemas/render.ts     |  2 +
+ packages/core/src/schemas/score.ts      |  3 ++
+ packages/core/src/schemas/story.ts      |  3 ++
+ packages/formatter/package.json         | 11 +++++
+ packages/formatter/src/cta.ts           | 12 +++++
+ packages/formatter/src/format.ts        | 81 +++++++++++++++++++++++++++++++++
+ packages/formatter/src/index.ts         | 25 ++++++++++
+ packages/formatter/src/pacing.ts        | 10 ++++
+ packages/formatter/src/segment.ts       |  4 ++
+ packages/formatter/tests/format.test.ts | 23 ++++++++++
+ packages/formatter/tests/pacing.test.ts | 14 ++++++
+ packages/formatter/tsconfig.json        |  1 +
+ pnpm-lock.yaml                          | 16 +++++++
+ 13 files changed, 205 insertions(+)
+
+## Diff
+diff --git a/packages/core/src/schemas/render.ts b/packages/core/src/schemas/render.ts
+index 3126560..a93c9d4 100644
+--- a/packages/core/src/schemas/render.ts
++++ b/packages/core/src/schemas/render.ts
+@@ -19,10 +19,12 @@ export const RenderPackageSchema = z.object({
+   timing_map: z.record(z.string(), z.number().nonnegative()),
+   background_assets: z.array(z.string()),
+   audio_assets: z.array(z.string()),
+   render_targets: z.array(
+     z.object({
+       platform: z.enum(["tiktok_reels", "youtube_shorts"]),
+       out_path: z.string(),
+     })
+   ),
+ });
++export type ScenePlan = z.infer<typeof ScenePlanSchema>;
++export type RenderPackage = z.infer<typeof RenderPackageSchema>;
+diff --git a/packages/core/src/schemas/score.ts b/packages/core/src/schemas/score.ts
+index df99e7a..e9bafa5 100644
+--- a/packages/core/src/schemas/score.ts
++++ b/packages/core/src/schemas/score.ts
+@@ -18,10 +18,13 @@ export const JudgeScoresSchema = z.object({
+ 
+ export const ScoreReportSchema = z.object({
+   story_id: z.string(),
+   heuristic_checks: z.array(HeuristicCheckSchema),
+   heuristic_pass: z.boolean(),
+   judge_scores: JudgeScoresSchema.optional(),
+   judge_summary: z.string().max(800).optional(),
+   accept_decision: z.enum(["accept", "reject"]),
+   reject_reasons: z.array(z.string()),
+ });
++export type HeuristicCheck = z.infer<typeof HeuristicCheckSchema>;
++export type JudgeScores = z.infer<typeof JudgeScoresSchema>;
++export type ScoreReport = z.infer<typeof ScoreReportSchema>;
+diff --git a/packages/core/src/schemas/story.ts b/packages/core/src/schemas/story.ts
+index a0b970b..be3e2f4 100644
+--- a/packages/core/src/schemas/story.ts
++++ b/packages/core/src/schemas/story.ts
+@@ -30,10 +30,13 @@ export const StoryPackageSchema = z.object({
+   music_mood: z.enum(["ambient-drone", "soft-piano", "low-tension", "heartbeat", "static-bass"]),
+   tts_voice: z.enum(["am_michael", "am_george", "af_sarah"]),
+   cta: z.enum(["none", "follow-for-part-2", "comment-your-take", "share-if-relate"]),
+   platform_variants: z.object({
+     tiktok_reels: z.object({ pacing: z.enum(["fast", "medium"]) }),
+     youtube_shorts: z.object({ pacing: z.enum(["medium", "slow"]) }),
+   }),
+   generation_prompt_version: z.string().min(1),
+   freshness_fingerprint: z.string().length(16),
+ });
++export type ForumCard = z.infer<typeof ForumCardSchema>;
++export type StoryBlock = z.infer<typeof StoryBlockSchema>;
++export type StoryPackage = z.infer<typeof StoryPackageSchema>;
+diff --git a/packages/formatter/package.json b/packages/formatter/package.json
+new file mode 100644
+index 0000000..113ce6b
+--- /dev/null
++++ b/packages/formatter/package.json
+@@ -0,0 +1,11 @@
++{
++  "name": "@rcf/formatter",
++  "version": "0.0.0",
++  "type": "module",
++  "main": "./dist/index.js",
++  "types": "./dist/index.d.ts",
++  "exports": { ".": "./dist/index.js" },
++  "scripts": { "build": "tsc", "test": "vitest run", "start": "tsx src/index.ts" },
++  "dependencies": { "@rcf/core": "workspace:*" },
++  "devDependencies": { "tsx": "^4.7.0", "typescript": "^5.4.0", "vitest": "^1.6.0" }
++}
+diff --git a/packages/formatter/src/cta.ts b/packages/formatter/src/cta.ts
+new file mode 100644
+index 0000000..214d464
+--- /dev/null
++++ b/packages/formatter/src/cta.ts
+@@ -0,0 +1,12 @@
++export const ctaText = (c: string): string => {
++  switch (c) {
++    case "follow-for-part-2":
++      return "Follow for part 2.";
++    case "comment-your-take":
++      return "What would you have done?";
++    case "share-if-relate":
++      return "Share if you have been there.";
++    default:
++      return "";
++  }
++};
+diff --git a/packages/formatter/src/format.ts b/packages/formatter/src/format.ts
+new file mode 100644
+index 0000000..5e0e200
+--- /dev/null
++++ b/packages/formatter/src/format.ts
+@@ -0,0 +1,81 @@
++import {
++  RenderPackageSchema,
++  type StoryPackage,
++  type ScoreReport,
++  type RenderPackage,
++  type ScenePlan,
++  paths,
++} from "@rcf/core";
++import { writeFile, mkdir } from "node:fs/promises";
++import { segmentBlocks } from "./segment.js";
++import { pacingFactor, adjustDuration } from "./pacing.js";
++import { ctaText } from "./cta.js";
++
++export const formatStoryPackage = async (
++  story: StoryPackage,
++  _score: ScoreReport,
++  opts: { platform: "tiktok_reels" | "youtube_shorts"; outDir?: string }
++): Promise<RenderPackage> => {
++  const storyPacing =
++    opts.platform === "tiktok_reels"
++      ? story.platform_variants.tiktok_reels.pacing
++      : story.platform_variants.youtube_shorts.pacing;
++  const factor = pacingFactor(opts.platform, storyPacing);
++  const blocks = segmentBlocks(story);
++
++  const hookDuration = 2.0;
++  const outroDuration = 1.5;
++  let cursor = 0;
++  const scenes: ScenePlan["scenes"] = [
++    {
++      scene_id: `${story.story_id}_hook`,
++      kind: "hook-card" as const,
++      start_s: cursor,
++      duration_s: hookDuration,
++      text: story.hook,
++      background_mood: story.background_mood,
++    },
++  ];
++  cursor += hookDuration;
++  for (const b of blocks) {
++    const d = adjustDuration(b.duration_s, factor);
++    scenes.push({
++      scene_id: `${story.story_id}_b${b.index}`,
++      kind: "story-block" as const,
++      start_s: cursor,
++      duration_s: d,
++      text: b.text,
++      background_mood: story.background_mood,
++    });
++    cursor += d;
++  }
++  scenes.push({
++    scene_id: `${story.story_id}_twist`,
++    kind: "twist" as const,
++    start_s: cursor,
++    duration_s: adjustDuration(3, factor),
++    text: story.twist,
++    background_mood: story.background_mood,
++  });
++  cursor += adjustDuration(3, factor);
++  scenes.push({
++    scene_id: `${story.story_id}_outro`,
++    kind: "outro" as const,
++    start_s: cursor,
++    duration_s: outroDuration,
++    text: ctaText(story.cta),
++  });
++
++  const out = (opts.outDir ?? paths.renderDir()) + `/${story.story_id}_${opts.platform}.mp4`;
++  const pkg = RenderPackageSchema.parse({
++    story_id: story.story_id,
++    scene_plan: { scenes },
++    timing_map: Object.fromEntries(scenes.map((s) => [s.scene_id, s.start_s])),
++    background_assets: [],
++    audio_assets: [],
++    render_targets: [{ platform: opts.platform, out_path: out }],
++  });
++  await mkdir(paths.renderDir(), { recursive: true });
++  await writeFile(paths.renderJson(`${story.story_id}_${opts.platform}`), JSON.stringify(pkg, null, 2));
++  return pkg;
++};
+diff --git a/packages/formatter/src/index.ts b/packages/formatter/src/index.ts
+new file mode 100644
+index 0000000..a552ff9
+--- /dev/null
++++ b/packages/formatter/src/index.ts
+@@ -0,0 +1,25 @@
++import { readdir, readFile } from "node:fs/promises";
++import path from "node:path";
++import { paths, type StoryPackage, type ScoreReport } from "@rcf/core";
++import { formatStoryPackage } from "./format.js";
++
++const main = async () => {
++  const scoreFiles = (await readdir(paths.scoresDir())).filter((f) => f.endsWith(".json"));
++  const platforms: ("tiktok_reels" | "youtube_shorts")[] = ["tiktok_reels", "youtube_shorts"];
++  let count = 0;
++  for (const f of scoreFiles) {
++    const score = JSON.parse(await readFile(path.join(paths.scoresDir(), f), "utf8")) as ScoreReport;
++    if (score.accept_decision !== "accept") continue;
++    const story = JSON.parse(await readFile(paths.storyJson(score.story_id), "utf8")) as StoryPackage;
++    for (const p of platforms) {
++      await formatStoryPackage(story, score, { platform: p });
++      count++;
++    }
++  }
++  console.log(`formatter: wrote ${count} render packages`);
++};
++
++main().catch((e) => {
++  console.error(e);
++  process.exit(1);
++});
+diff --git a/packages/formatter/src/pacing.ts b/packages/formatter/src/pacing.ts
+new file mode 100644
+index 0000000..3080277
+--- /dev/null
++++ b/packages/formatter/src/pacing.ts
+@@ -0,0 +1,10 @@
++type Platform = "tiktok_reels" | "youtube_shorts";
++
++export const pacingFactor = (p: Platform, storyPacing: "fast" | "medium" | "slow"): number => {
++  if (p === "tiktok_reels") {
++    return storyPacing === "fast" ? 0.85 : 1.0;
++  }
++  return storyPacing === "slow" ? 1.2 : 1.0;
++};
++
++export const adjustDuration = (d: number, factor: number) => Math.max(2, Math.round(d * factor * 10) / 10);
+diff --git a/packages/formatter/src/segment.ts b/packages/formatter/src/segment.ts
+new file mode 100644
+index 0000000..e044a6b
+--- /dev/null
++++ b/packages/formatter/src/segment.ts
+@@ -0,0 +1,4 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const segmentBlocks = (s: StoryPackage): { index: number; text: string; duration_s: number }[] =>
++  s.story_blocks.map((b) => ({ index: b.index, text: b.text, duration_s: b.suggested_duration_s }));
+diff --git a/packages/formatter/tests/format.test.ts b/packages/formatter/tests/format.test.ts
+new file mode 100644
+index 0000000..874ffa4
+--- /dev/null
++++ b/packages/formatter/tests/format.test.ts
+@@ -0,0 +1,23 @@
++import { describe, it, expect } from "vitest";
++import { formatStoryPackage } from "../src/format.js";
++import { RenderPackageSchema, StoryPackageSchema, type StoryPackage, type ScoreReport } from "@rcf/core";
++import validStory from "../../heuristic/tests/fixtures/valid-story.json" assert { type: "json" };
++
++const story: StoryPackage = StoryPackageSchema.parse(validStory);
++
++const acceptScore: ScoreReport = {
++  story_id: story.story_id,
++  heuristic_checks: [],
++  heuristic_pass: true,
++  accept_decision: "accept",
++  reject_reasons: [],
++};
++
++describe("formatStoryPackage", () => {
++  it("produces a valid render package for tiktok_reels", async () => {
++    const pkg = await formatStoryPackage(story, acceptScore, { platform: "tiktok_reels" });
++    expect(() => RenderPackageSchema.parse(pkg)).not.toThrow();
++    expect(pkg.scene_plan.scenes[0]!.kind).toBe("hook-card");
++    expect(pkg.scene_plan.scenes.at(-1)!.kind).toBe("outro");
++  });
++});
+diff --git a/packages/formatter/tests/pacing.test.ts b/packages/formatter/tests/pacing.test.ts
+new file mode 100644
+index 0000000..5b7e3ca
+--- /dev/null
++++ b/packages/formatter/tests/pacing.test.ts
+@@ -0,0 +1,14 @@
++import { describe, it, expect } from "vitest";
++import { pacingFactor, adjustDuration } from "../src/pacing.js";
++
++describe("pacing", () => {
++  it("tiktok fast -> 0.85", () => {
++    expect(pacingFactor("tiktok_reels", "fast")).toBe(0.85);
++  });
++  it("shorts slow -> 1.2", () => {
++    expect(pacingFactor("youtube_shorts", "slow")).toBe(1.2);
++  });
++  it("adjustDuration floors at 2s", () => {
++    expect(adjustDuration(1, 0.1)).toBe(2);
++  });
++});
+diff --git a/packages/formatter/tsconfig.json b/packages/formatter/tsconfig.json
+new file mode 100644
+index 0000000..86bbd96
+--- /dev/null
++++ b/packages/formatter/tsconfig.json
+@@ -0,0 +1 @@
++{ "extends": "../../tsconfig.base.json", "compilerOptions": { "outDir": "dist", "rootDir": "src" }, "include": ["src"] }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 60f86b2..e71d1af 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -18,20 +18,36 @@ importers:
+         specifier: ^3.23.8
+         version: 3.25.76
+     devDependencies:
+       typescript:
+         specifier: ^5.4.0
+         version: 5.9.3
+       vitest:
+         specifier: ^1.6.0
+         version: 1.6.1(@types/node@26.0.1)
+ 
++  packages/formatter:
++    dependencies:
++      '@rcf/core':
++        specifier: workspace:*
++        version: link:../core
++    devDependencies:
++      tsx:
++        specifier: ^4.7.0
++        version: 4.22.4
++      typescript:
++        specifier: ^5.4.0
++        version: 5.9.3
++      vitest:
++        specifier: ^1.6.0
++        version: 1.6.1(@types/node@26.0.1)
++
+   packages/generator:
+     dependencies:
+       '@rcf/core':
+         specifier: workspace:*
+         version: link:../core
+       zod:
+         specifier: ^3.23.8
+         version: 3.25.76
+     devDependencies:
+       tsx:

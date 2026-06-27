@@ -1,0 +1,499 @@
+# Review package: 8e93ddc..95bedb0
+
+## Commits
+95bedb0 feat(heuristic): gate + no-forgery checks with fixtures
+
+## Files changed
+ packages/heuristic/package.json                    | 11 +++++++
+ packages/heuristic/src/checks/banned-endings.ts    |  9 ++++++
+ packages/heuristic/src/checks/cadence.ts           |  9 ++++++
+ packages/heuristic/src/checks/duplicate.ts         | 21 ++++++++++++
+ packages/heuristic/src/checks/hook-length.ts       |  7 ++++
+ packages/heuristic/src/checks/readability.ts       | 12 +++++++
+ packages/heuristic/src/checks/runtime-fit.ts       |  7 ++++
+ packages/heuristic/src/checks/structure.ts         | 10 ++++++
+ packages/heuristic/src/gate.ts                     | 37 ++++++++++++++++++++++
+ packages/heuristic/src/index.ts                    | 22 +++++++++++++
+ packages/heuristic/src/no-forgery.ts               | 33 +++++++++++++++++++
+ .../heuristic/tests/fixtures/forged-votes.json     | 32 +++++++++++++++++++
+ .../heuristic/tests/fixtures/real-subreddit.json   | 29 +++++++++++++++++
+ packages/heuristic/tests/fixtures/valid-story.json | 30 ++++++++++++++++++
+ packages/heuristic/tests/gate.test.ts              | 30 ++++++++++++++++++
+ packages/heuristic/tests/no-forgery.test.ts        | 29 +++++++++++++++++
+ packages/heuristic/tsconfig.json                   |  1 +
+ pnpm-lock.yaml                                     | 16 ++++++++++
+ 18 files changed, 345 insertions(+)
+
+## Diff
+diff --git a/packages/heuristic/package.json b/packages/heuristic/package.json
+new file mode 100644
+index 0000000..f59d7bb
+--- /dev/null
++++ b/packages/heuristic/package.json
+@@ -0,0 +1,11 @@
++{
++  "name": "@rcf/heuristic",
++  "version": "0.0.0",
++  "type": "module",
++  "main": "./dist/index.js",
++  "types": "./dist/index.d.ts",
++  "exports": { ".": "./dist/index.js" },
++  "scripts": { "build": "tsc", "test": "vitest run", "start": "tsx src/index.ts" },
++  "dependencies": { "@rcf/core": "workspace:*" },
++  "devDependencies": { "tsx": "^4.7.0", "typescript": "^5.4.0", "vitest": "^1.6.0" }
++}
+diff --git a/packages/heuristic/src/checks/banned-endings.ts b/packages/heuristic/src/checks/banned-endings.ts
+new file mode 100644
+index 0000000..3b14d45
+--- /dev/null
++++ b/packages/heuristic/src/checks/banned-endings.ts
+@@ -0,0 +1,9 @@
++import type { StoryPackage } from "@rcf/core";
++
++const BANNED = [/and then i woke up/i, /it was all a dream/i, /the end\./i];
++
++export const bannedEndings = (s: StoryPackage) => {
++  const haystack = `${s.twist} ${s.story_blocks.map((b) => b.text).join(" ")}`;
++  const hit = BANNED.find((re) => re.test(haystack));
++  return { name: "banned-endings", pass: !hit, detail: hit ? hit.source : undefined };
++};
+diff --git a/packages/heuristic/src/checks/cadence.ts b/packages/heuristic/src/checks/cadence.ts
+new file mode 100644
+index 0000000..c92ea22
+--- /dev/null
++++ b/packages/heuristic/src/checks/cadence.ts
+@@ -0,0 +1,9 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const cadence = (s: StoryPackage) => {
++  if (s.story_blocks.length < 3) {
++    return { name: "cadence", pass: false, detail: "needs at least 3 blocks" };
++  }
++  const varying = new Set(s.story_blocks.map((b) => Math.round(b.suggested_duration_s))).size >= 2;
++  return { name: "cadence", pass: varying, detail: `durations=${s.story_blocks.map((b) => b.suggested_duration_s).join(",")}` };
++};
+diff --git a/packages/heuristic/src/checks/duplicate.ts b/packages/heuristic/src/checks/duplicate.ts
+new file mode 100644
+index 0000000..3b07553
+--- /dev/null
++++ b/packages/heuristic/src/checks/duplicate.ts
+@@ -0,0 +1,21 @@
++import { readdir, readFile } from "node:fs/promises";
++import path from "node:path";
++import type { StoryPackage } from "@rcf/core";
++import { paths } from "@rcf/core";
++
++export const duplicate = async (s: StoryPackage) => {
++  try {
++    const dir = paths.storiesDir();
++    const files = await readdir(dir);
++    for (const f of files) {
++      if (!f.endsWith(".json") || f === `${s.story_id}.json`) continue;
++      const other = JSON.parse(await readFile(path.join(dir, f), "utf8")) as StoryPackage;
++      if (other.freshness_fingerprint === s.freshness_fingerprint) {
++        return { name: "duplicate", pass: false, detail: `collides with ${f}` };
++      }
++    }
++    return { name: "duplicate", pass: true };
++  } catch {
++    return { name: "duplicate", pass: true };
++  }
++};
+diff --git a/packages/heuristic/src/checks/hook-length.ts b/packages/heuristic/src/checks/hook-length.ts
+new file mode 100644
+index 0000000..1e5c8e8
+--- /dev/null
++++ b/packages/heuristic/src/checks/hook-length.ts
+@@ -0,0 +1,7 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const hookLength = (s: StoryPackage) => {
++  const len = s.hook.length;
++  const ok = len >= 12 && len <= 110;
++  return { name: "hook-length", pass: ok, detail: `len=${len}` };
++};
+diff --git a/packages/heuristic/src/checks/readability.ts b/packages/heuristic/src/checks/readability.ts
+new file mode 100644
+index 0000000..9a84825
+--- /dev/null
++++ b/packages/heuristic/src/checks/readability.ts
+@@ -0,0 +1,12 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const readability = (s: StoryPackage) => {
++  const all = `${s.hook} ${s.story_blocks.map((b) => b.text).join(" ")}`;
++  const avgSentenceLen = (() => {
++    const sentences = all.split(/[.!?]+/).filter(Boolean);
++    if (sentences.length === 0) return 999;
++    return all.length / sentences.length;
++  })();
++  const ok = avgSentenceLen <= 140;
++  return { name: "readability", pass: ok, detail: `avg=${avgSentenceLen.toFixed(0)}` };
++};
+diff --git a/packages/heuristic/src/checks/runtime-fit.ts b/packages/heuristic/src/checks/runtime-fit.ts
+new file mode 100644
+index 0000000..fef42e0
+--- /dev/null
++++ b/packages/heuristic/src/checks/runtime-fit.ts
+@@ -0,0 +1,7 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const runtimeFit = (s: StoryPackage) => {
++  const total = s.story_blocks.reduce((a, b) => a + b.suggested_duration_s, 0);
++  const ok = total >= 15 && total <= 90;
++  return { name: "runtime-fit", pass: ok, detail: `total=${total}s` };
++};
+diff --git a/packages/heuristic/src/checks/structure.ts b/packages/heuristic/src/checks/structure.ts
+new file mode 100644
+index 0000000..8f174ce
+--- /dev/null
++++ b/packages/heuristic/src/checks/structure.ts
+@@ -0,0 +1,10 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const structure = (s: StoryPackage) => {
++  const ok =
++    s.premise.length > 0 &&
++    s.twist.length > 0 &&
++    s.story_blocks.length >= 2 &&
++    s.story_blocks.every((b, i) => b.index === i);
++  return { name: "structure", pass: ok };
++};
+diff --git a/packages/heuristic/src/gate.ts b/packages/heuristic/src/gate.ts
+new file mode 100644
+index 0000000..a66edc7
+--- /dev/null
++++ b/packages/heuristic/src/gate.ts
+@@ -0,0 +1,37 @@
++import { ScoreReportSchema, type StoryPackage, type ScoreReport, paths } from "@rcf/core";
++import { writeFile, mkdir } from "node:fs/promises";
++import { runtimeFit } from "./checks/runtime-fit.js";
++import { hookLength } from "./checks/hook-length.js";
++import { cadence } from "./checks/cadence.js";
++import { duplicate } from "./checks/duplicate.js";
++import { bannedEndings } from "./checks/banned-endings.js";
++import { readability } from "./checks/readability.js";
++import { structure } from "./checks/structure.js";
++import { noForgery } from "./no-forgery.js";
++
++export const runHeuristicGate = async (story: StoryPackage): Promise<ScoreReport> => {
++  const forgery = noForgery(story);
++  const checks = await Promise.all([
++    runtimeFit(story),
++    hookLength(story),
++    cadence(story),
++    duplicate(story),
++    bannedEndings(story),
++    readability(story),
++    structure(story),
++  ]);
++  const allPass = forgery.pass && checks.every((c) => c.pass);
++  const report = ScoreReportSchema.parse({
++    story_id: story.story_id,
++    heuristic_checks: checks,
++    heuristic_pass: allPass,
++    accept_decision: allPass ? "accept" : "reject",
++    reject_reasons: [
++      ...checks.filter((c) => !c.pass).map((c) => `${c.name}: ${c.detail ?? "failed"}`),
++      ...forgery.hits,
++    ],
++  });
++  await mkdir(paths.scoresDir(), { recursive: true });
++  await writeFile(paths.scoreJson(story.story_id), JSON.stringify(report, null, 2));
++  return report;
++};
+diff --git a/packages/heuristic/src/index.ts b/packages/heuristic/src/index.ts
+new file mode 100644
+index 0000000..62dca6f
+--- /dev/null
++++ b/packages/heuristic/src/index.ts
+@@ -0,0 +1,22 @@
++import { readdir, readFile } from "node:fs/promises";
++import path from "node:path";
++import { paths, type StoryPackage } from "@rcf/core";
++import { runHeuristicGate } from "./gate.js";
++
++const main = async () => {
++  const dir = paths.storiesDir();
++  const files = (await readdir(dir)).filter((f) => f.endsWith(".json"));
++  let accepted = 0;
++  let rejected = 0;
++  for (const f of files) {
++    const story = JSON.parse(await readFile(path.join(dir, f), "utf8")) as StoryPackage;
++    const r = await runHeuristicGate(story);
++    if (r.accept_decision === "accept") accepted++; else rejected++;
++  }
++  console.log(`heuristic: ${accepted} accepted, ${rejected} rejected`);
++};
++
++main().catch((e) => {
++  console.error(e);
++  process.exit(1);
++});
+diff --git a/packages/heuristic/src/no-forgery.ts b/packages/heuristic/src/no-forgery.ts
+new file mode 100644
+index 0000000..2e5d21c
+--- /dev/null
++++ b/packages/heuristic/src/no-forgery.ts
+@@ -0,0 +1,33 @@
++import type { StoryPackage } from "@rcf/core";
++
++const FORBIDDEN_KEYS = ["votes", "comments", "comment_count", "awards", "karma", "upvote", "downvote"] as const;
++const REAL_SUBREDDITS = [
++  "r/askreddit",
++  "r/confessions",
++  "r/aita",
++  "r/tifu",
++  "r/offmychest",
++  "r/trueoffmychest",
++  "r/relationship_advice",
++  "r/nosleep",
++  "r/letsnotmeet",
++];
++const IMPERSONATION_HINTS = ["real_", "official_", "mod_", "admin_"];
++
++export const noForgery = (s: StoryPackage) => {
++  const card = s.forum_card as unknown as Record<string, unknown>;
++  const hits: string[] = [];
++
++  for (const key of FORBIDDEN_KEYS) {
++    if (key in card) hits.push(`forum_card has forbidden field "${key}"`);
++  }
++  const label = (card.fictional_community_label ?? "").toString().toLowerCase().trim();
++  if (REAL_SUBREDDITS.some((sr) => label === sr || label.endsWith(sr))) {
++    hits.push(`forum_card.fictional_community_label uses real subreddit "${label}"`);
++  }
++  const handle = (card.fictional_handle ?? "").toString().toLowerCase();
++  if (IMPERSONATION_HINTS.some((h) => handle.startsWith(h))) {
++    hits.push(`forum_card.fictional_handle impersonation pattern: "${handle}"`);
++  }
++  return { pass: hits.length === 0, hits };
++};
+diff --git a/packages/heuristic/tests/fixtures/forged-votes.json b/packages/heuristic/tests/fixtures/forged-votes.json
+new file mode 100644
+index 0000000..950c528
+--- /dev/null
++++ b/packages/heuristic/tests/fixtures/forged-votes.json
+@@ -0,0 +1,32 @@
++{
++  "story_id": "s_fixture_forged",
++  "created_at": "2026-06-26T00:00:00.000Z",
++  "premise": "Forged-vote test fixture.",
++  "hook": "I should not have opened the basement door that night.",
++  "forum_card": {
++    "display_title": "Confession",
++    "fictional_handle": "throwaway_x",
++    "fictional_community_label": "confessions",
++    "relative_time_label": "2 hours ago",
++    "style_variant": "dark-card",
++    "votes": 1234,
++    "comments": 42,
++    "karma": 9001
++  },
++  "confession_voice": "first-person",
++  "story_blocks": [
++    { "index": 0, "text": "Block 1", "suggested_duration_s": 6 },
++    { "index": 1, "text": "Block 2", "suggested_duration_s": 4 }
++  ],
++  "twist": "The twist.",
++  "ending_mode": "twist",
++  "tone": "unsettling",
++  "intensity": "medium",
++  "background_mood": "dark-hallway",
++  "music_mood": "low-tension",
++  "tts_voice": "am_michael",
++  "cta": "comment-your-take",
++  "platform_variants": { "tiktok_reels": { "pacing": "fast" }, "youtube_shorts": { "pacing": "medium" } },
++  "generation_prompt_version": "v1",
++  "freshness_fingerprint": "f2f2f2f2f2f2f2f2"
++}
+diff --git a/packages/heuristic/tests/fixtures/real-subreddit.json b/packages/heuristic/tests/fixtures/real-subreddit.json
+new file mode 100644
+index 0000000..0010fc8
+--- /dev/null
++++ b/packages/heuristic/tests/fixtures/real-subreddit.json
+@@ -0,0 +1,29 @@
++{
++  "story_id": "s_fixture_real_sub",
++  "created_at": "2026-06-26T00:00:00.000Z",
++  "premise": "Real-subreddit test fixture.",
++  "hook": "I should not have opened the basement door that night.",
++  "forum_card": {
++    "display_title": "Confession",
++    "fictional_handle": "throwaway_x",
++    "fictional_community_label": "r/askreddit",
++    "relative_time_label": "2 hours ago",
++    "style_variant": "dark-card"
++  },
++  "confession_voice": "first-person",
++  "story_blocks": [
++    { "index": 0, "text": "Block 1", "suggested_duration_s": 6 },
++    { "index": 1, "text": "Block 2", "suggested_duration_s": 4 }
++  ],
++  "twist": "The twist.",
++  "ending_mode": "twist",
++  "tone": "unsettling",
++  "intensity": "medium",
++  "background_mood": "dark-hallway",
++  "music_mood": "low-tension",
++  "tts_voice": "am_michael",
++  "cta": "comment-your-take",
++  "platform_variants": { "tiktok_reels": { "pacing": "fast" }, "youtube_shorts": { "pacing": "medium" } },
++  "generation_prompt_version": "v1",
++  "freshness_fingerprint": "f3f3f3f3f3f3f3f3"
++}
+diff --git a/packages/heuristic/tests/fixtures/valid-story.json b/packages/heuristic/tests/fixtures/valid-story.json
+new file mode 100644
+index 0000000..eefbc5b
+--- /dev/null
++++ b/packages/heuristic/tests/fixtures/valid-story.json
+@@ -0,0 +1,30 @@
++{
++  "story_id": "s_fixture_valid",
++  "created_at": "2026-06-26T00:00:00.000Z",
++  "premise": "A fictional confession about a building superintendent and a flickering basement light.",
++  "hook": "I should not have opened the basement door that night.",
++  "forum_card": {
++    "display_title": "Confession: basement door",
++    "fictional_handle": "throwaway_nightshift",
++    "fictional_community_label": "confessions",
++    "relative_time_label": "2 hours ago",
++    "style_variant": "dark-card"
++  },
++  "confession_voice": "first-person",
++  "story_blocks": [
++    { "index": 0, "text": "The basement light flickered for three nights.", "suggested_duration_s": 6 },
++    { "index": 1, "text": "I told myself it was just a bulb.", "suggested_duration_s": 4 },
++    { "index": 2, "text": "On the third night I went down.", "suggested_duration_s": 5 }
++  ],
++  "twist": "There was no bulb. The light was coming up the stairs.",
++  "ending_mode": "twist",
++  "tone": "unsettling",
++  "intensity": "medium",
++  "background_mood": "dark-hallway",
++  "music_mood": "low-tension",
++  "tts_voice": "am_michael",
++  "cta": "comment-your-take",
++  "platform_variants": { "tiktok_reels": { "pacing": "fast" }, "youtube_shorts": { "pacing": "medium" } },
++  "generation_prompt_version": "v1",
++  "freshness_fingerprint": "f1f1f1f1f1f1f1f1"
++}
+diff --git a/packages/heuristic/tests/gate.test.ts b/packages/heuristic/tests/gate.test.ts
+new file mode 100644
+index 0000000..939c78a
+--- /dev/null
++++ b/packages/heuristic/tests/gate.test.ts
+@@ -0,0 +1,30 @@
++import { describe, it, expect } from "vitest";
++import { runHeuristicGate } from "../src/gate.js";
++import { StoryPackageSchema, type StoryPackage } from "@rcf/core";
++import validJson from "./fixtures/valid-story.json" assert { type: "json" };
++import forgedJson from "./fixtures/forged-votes.json" assert { type: "json" };
++import realSubJson from "./fixtures/real-subreddit.json" assert { type: "json" };
++
++// Forged/real-subreddit fixtures intentionally violate StoryPackageSchema; cast through unknown.
++const forged = forgedJson as unknown as StoryPackage;
++const realSub = realSubJson as unknown as StoryPackage;
++const valid = StoryPackageSchema.parse(validJson);
++
++describe("runHeuristicGate", () => {
++  it("accepts a clean story", async () => {
++    const r = await runHeuristicGate(valid);
++    expect(r.accept_decision).toBe("accept");
++  });
++
++  it("rejects forged forum_card engagement metrics", async () => {
++    const r = await runHeuristicGate(forged);
++    expect(r.accept_decision).toBe("reject");
++    expect(r.reject_reasons.some((x) => x.includes("forbidden field"))).toBe(true);
++  });
++
++  it("rejects real subreddit labels", async () => {
++    const r = await runHeuristicGate(realSub);
++    expect(r.accept_decision).toBe("reject");
++    expect(r.reject_reasons.some((x) => x.includes("real subreddit"))).toBe(true);
++  });
++});
+diff --git a/packages/heuristic/tests/no-forgery.test.ts b/packages/heuristic/tests/no-forgery.test.ts
+new file mode 100644
+index 0000000..d0e6919
+--- /dev/null
++++ b/packages/heuristic/tests/no-forgery.test.ts
+@@ -0,0 +1,29 @@
++import { describe, it, expect } from "vitest";
++import { noForgery } from "../src/no-forgery.js";
++import { StoryPackageSchema, type StoryPackage } from "@rcf/core";
++import forgedJson from "./fixtures/forged-votes.json" assert { type: "json" };
++import realSubJson from "./fixtures/real-subreddit.json" assert { type: "json" };
++import validJson from "./fixtures/valid-story.json" assert { type: "json" };
++
++// Forged/real-subreddit fixtures intentionally violate StoryPackageSchema; cast through unknown.
++const forged = forgedJson as unknown as StoryPackage;
++const realSub = realSubJson as unknown as StoryPackage;
++const valid = StoryPackageSchema.parse(validJson);
++
++describe("noForgery", () => {
++  it("passes clean stories", () => {
++    const r = noForgery(valid);
++    expect(r.pass).toBe(true);
++    expect(r.hits).toEqual([]);
++  });
++  it("flags forged engagement metrics", () => {
++    const r = noForgery(forged);
++    expect(r.pass).toBe(false);
++    expect(r.hits.some((h) => h.includes("votes"))).toBe(true);
++  });
++  it("flags real subreddit references", () => {
++    const r = noForgery(realSub);
++    expect(r.pass).toBe(false);
++    expect(r.hits.some((h) => h.includes("real subreddit"))).toBe(true);
++  });
++});
+diff --git a/packages/heuristic/tsconfig.json b/packages/heuristic/tsconfig.json
+new file mode 100644
+index 0000000..86bbd96
+--- /dev/null
++++ b/packages/heuristic/tsconfig.json
+@@ -0,0 +1 @@
++{ "extends": "../../tsconfig.base.json", "compilerOptions": { "outDir": "dist", "rootDir": "src" }, "include": ["src"] }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index eea2256..4ddca88 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -37,20 +37,36 @@ importers:
+       tsx:
+         specifier: ^4.7.0
+         version: 4.22.4
+       typescript:
+         specifier: ^5.4.0
+         version: 5.9.3
+       vitest:
+         specifier: ^1.6.0
+         version: 1.6.1(@types/node@26.0.1)
+ 
++  packages/heuristic:
++    dependencies:
++      '@rcf/core':
++        specifier: workspace:*
++        version: link:../core
++    devDependencies:
++      tsx:
++        specifier: ^4.7.0
++        version: 4.22.4
++      typescript:
++        specifier: ^5.4.0
++        version: 5.9.3
++      vitest:
++        specifier: ^1.6.0
++        version: 1.6.1(@types/node@26.0.1)
++
+ packages:
+ 
+   '@esbuild/aix-ppc64@0.21.5':
+     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
+     engines: {node: '>=12'}
+     cpu: [ppc64]
+     os: [aix]
+ 
+   '@esbuild/aix-ppc64@0.28.1':
+     resolution: {integrity: sha512-Svl7tq8k/08+p6CXPpRjQ1fKX+1odH/BQbb48fV6fj3CWHhsoIOoY87w1oHXm0qEpkIK3ZfVgp0hed3XBXzXMQ==}

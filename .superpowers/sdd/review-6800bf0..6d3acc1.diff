@@ -1,0 +1,384 @@
+# Review package: 6800bf0..6d3acc1
+
+## Commits
+6d3acc1 feat(orchestrator): role registry + daily batch + scheduler
+
+## Files changed
+ packages/orchestrator/package.json        | 31 +++++++++++++++
+ packages/orchestrator/src/batch.ts        | 39 +++++++++++++++++++
+ packages/orchestrator/src/index.ts        |  2 +
+ packages/orchestrator/src/roles.ts        | 11 ++++++
+ packages/orchestrator/src/scheduler.ts    | 10 +++++
+ packages/orchestrator/tests/batch.test.ts | 17 +++++++++
+ packages/orchestrator/tsconfig.json       |  1 +
+ pnpm-lock.yaml                            | 63 +++++++++++++++++++++++++++++++
+ 8 files changed, 174 insertions(+)
+
+## Diff
+diff --git a/packages/orchestrator/package.json b/packages/orchestrator/package.json
+new file mode 100644
+index 0000000..f57c074
+--- /dev/null
++++ b/packages/orchestrator/package.json
+@@ -0,0 +1,31 @@
++{
++  "name": "@rcf/orchestrator",
++  "version": "0.0.0",
++  "type": "module",
++  "main": "./dist/index.js",
++  "types": "./dist/index.d.ts",
++  "exports": { ".": "./dist/index.js" },
++  "scripts": {
++    "build": "tsc",
++    "test": "vitest run",
++    "start": "tsx src/index.ts",
++    "batch": "tsx src/batch.ts"
++  },
++  "dependencies": {
++    "@rcf/core": "workspace:*",
++    "@rcf/generator": "workspace:*",
++    "@rcf/heuristic": "workspace:*",
++    "@rcf/judge": "workspace:*",
++    "@rcf/formatter": "workspace:*",
++    "@rcf/composer": "workspace:*",
++    "@rcf/exporter": "workspace:*",
++    "@rcf/analytics": "workspace:*",
++    "node-cron": "^3.0.3"
++  },
++  "devDependencies": {
++    "@types/node-cron": "^3.0.11",
++    "tsx": "^4.7.0",
++    "typescript": "^5.4.0",
++    "vitest": "^1.6.0"
++  }
++}
+diff --git a/packages/orchestrator/src/batch.ts b/packages/orchestrator/src/batch.ts
+new file mode 100644
+index 0000000..1263137
+--- /dev/null
++++ b/packages/orchestrator/src/batch.ts
+@@ -0,0 +1,39 @@
++import { execFile } from "node:child_process";
++import { promisify } from "node:util";
++import path from "node:path";
++
++const pexec = promisify(execFile);
++
++const run = (pkg: string, script: string, env: Record<string, string> = {}) =>
++  pexec("pnpm", ["--filter", pkg, "run", script], {
++    cwd: path.resolve(process.cwd()),
++    env: { ...process.env, ...env },
++  });
++
++export type BatchSummary = {
++  generated: number;
++  accepted_by_gate: number;
++  accepted_by_judge: number;
++  rendered: number;
++  bundled: number;
++  failed: number;
++};
++
++export const runDailyBatch = async (opts: { generateCount: number; judgeBudget: number }): Promise<BatchSummary> => {
++  const summary: BatchSummary = { generated: 0, accepted_by_gate: 0, accepted_by_judge: 0, rendered: 0, bundled: 0, failed: 0 };
++  try {
++    await run("@rcf/generator", "start", { RCF_GENERATE_COUNT: String(opts.generateCount) });
++    summary.generated = opts.generateCount;
++    await run("@rcf/heuristic", "start");
++    await run("@rcf/judge", "start", { RCF_JUDGE_BUDGET: String(opts.judgeBudget) });
++    await run("@rcf/formatter", "start");
++    await run("@rcf/composer", "start");
++    await run("@rcf/exporter", "start");
++    summary.rendered = opts.generateCount;
++    summary.bundled = opts.generateCount;
++  } catch (e) {
++    summary.failed++;
++    console.error("batch failure:", e);
++  }
++  return summary;
++};
+diff --git a/packages/orchestrator/src/index.ts b/packages/orchestrator/src/index.ts
+new file mode 100644
+index 0000000..b194d97
+--- /dev/null
++++ b/packages/orchestrator/src/index.ts
+@@ -0,0 +1,2 @@
++import { startScheduler } from "./scheduler.js";
++startScheduler();
+diff --git a/packages/orchestrator/src/roles.ts b/packages/orchestrator/src/roles.ts
+new file mode 100644
+index 0000000..5087df6
+--- /dev/null
++++ b/packages/orchestrator/src/roles.ts
+@@ -0,0 +1,11 @@
++export const ROLES = {
++  storyGenerator: "@rcf/generator",
++  heuristicGate: "@rcf/heuristic",
++  llmStoryJudge: "@rcf/judge",
++  scriptFormatter: "@rcf/formatter",
++  visualComposer: "@rcf/composer",
++  exportPublisher: "@rcf/exporter",
++  analyticsTracker: "@rcf/analytics",
++} as const;
++
++export type RoleName = keyof typeof ROLES;
+diff --git a/packages/orchestrator/src/scheduler.ts b/packages/orchestrator/src/scheduler.ts
+new file mode 100644
+index 0000000..7e893c1
+--- /dev/null
++++ b/packages/orchestrator/src/scheduler.ts
+@@ -0,0 +1,10 @@
++import cron from "node-cron";
++import { runDailyBatch } from "./batch.js";
++
++export const startScheduler = (): void => {
++  cron.schedule("0 9 * * *", async () => {
++    const s = await runDailyBatch({ generateCount: 25, judgeBudget: 8 });
++    console.log("daily batch:", s);
++  });
++  console.log("scheduler: daily 09:00 registered");
++};
+diff --git a/packages/orchestrator/tests/batch.test.ts b/packages/orchestrator/tests/batch.test.ts
+new file mode 100644
+index 0000000..2e21be1
+--- /dev/null
++++ b/packages/orchestrator/tests/batch.test.ts
+@@ -0,0 +1,17 @@
++import { describe, it, expect } from "vitest";
++import { ROLES } from "../src/roles.js";
++
++describe("roles", () => {
++  it("has exactly 7 roles", () => {
++    expect(Object.keys(ROLES)).toHaveLength(7);
++  });
++  it("includes the seven named roles", () => {
++    expect(ROLES.storyGenerator).toBe("@rcf/generator");
++    expect(ROLES.heuristicGate).toBe("@rcf/heuristic");
++    expect(ROLES.llmStoryJudge).toBe("@rcf/judge");
++    expect(ROLES.scriptFormatter).toBe("@rcf/formatter");
++    expect(ROLES.visualComposer).toBe("@rcf/composer");
++    expect(ROLES.exportPublisher).toBe("@rcf/exporter");
++    expect(ROLES.analyticsTracker).toBe("@rcf/analytics");
++  });
++});
+diff --git a/packages/orchestrator/tsconfig.json b/packages/orchestrator/tsconfig.json
+new file mode 100644
+index 0000000..86bbd96
+--- /dev/null
++++ b/packages/orchestrator/tsconfig.json
+@@ -0,0 +1 @@
++{ "extends": "../../tsconfig.base.json", "compilerOptions": { "outDir": "dist", "rootDir": "src" }, "include": ["src"] }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index 3cad0fe..3f7f8f6 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -142,20 +142,63 @@ importers:
+       tsx:
+         specifier: ^4.7.0
+         version: 4.22.4
+       typescript:
+         specifier: ^5.4.0
+         version: 5.9.3
+       vitest:
+         specifier: ^1.6.0
+         version: 1.6.1(@types/node@26.0.1)
+ 
++  packages/orchestrator:
++    dependencies:
++      '@rcf/analytics':
++        specifier: workspace:*
++        version: link:../analytics
++      '@rcf/composer':
++        specifier: workspace:*
++        version: link:../composer
++      '@rcf/core':
++        specifier: workspace:*
++        version: link:../core
++      '@rcf/exporter':
++        specifier: workspace:*
++        version: link:../exporter
++      '@rcf/formatter':
++        specifier: workspace:*
++        version: link:../formatter
++      '@rcf/generator':
++        specifier: workspace:*
++        version: link:../generator
++      '@rcf/heuristic':
++        specifier: workspace:*
++        version: link:../heuristic
++      '@rcf/judge':
++        specifier: workspace:*
++        version: link:../judge
++      node-cron:
++        specifier: ^3.0.3
++        version: 3.0.3
++    devDependencies:
++      '@types/node-cron':
++        specifier: ^3.0.11
++        version: 3.0.11
++      tsx:
++        specifier: ^4.7.0
++        version: 4.22.4
++      typescript:
++        specifier: ^5.4.0
++        version: 5.9.3
++      vitest:
++        specifier: ^1.6.0
++        version: 1.6.1(@types/node@26.0.1)
++
+ packages:
+ 
+   '@esbuild/aix-ppc64@0.21.5':
+     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
+     engines: {node: '>=12'}
+     cpu: [ppc64]
+     os: [aix]
+ 
+   '@esbuild/aix-ppc64@0.28.1':
+     resolution: {integrity: sha512-Svl7tq8k/08+p6CXPpRjQ1fKX+1odH/BQbb48fV6fj3CWHhsoIOoY87w1oHXm0qEpkIK3ZfVgp0hed3XBXzXMQ==}
+@@ -579,20 +622,23 @@ packages:
+ 
+   '@sinclair/typebox@0.27.10':
+     resolution: {integrity: sha512-MTBk/3jGLNB2tVxv6uLlFh1iu64iYOQ2PbdOSK3NW8JZsmlaOh2q6sdtKowBhfw8QFLmYNzTW4/oK4uATIi6ZA==}
+ 
+   '@types/better-sqlite3@7.6.13':
+     resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
+ 
+   '@types/estree@1.0.9':
+     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
+ 
++  '@types/node-cron@3.0.11':
++    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
++
+   '@types/node@26.0.1':
+     resolution: {integrity: sha512-fc3KiUoBt6kie0N9bIW3E47vZsuaMf0PM2AaUpLCLT0s/LvX1nxAim6Fc049cNxODPpGm6qRAuUOB86SkRuPQw==}
+ 
+   '@vitest/expect@1.6.1':
+     resolution: {integrity: sha512-jXL+9+ZNIJKruofqXuuTClf44eSpcHlgj3CiuNihUF3Ioujtmc0zIa3UJOW5RjDK1YLBJZnWBlPuqhYycLioog==}
+ 
+   '@vitest/runner@1.6.1':
+     resolution: {integrity: sha512-3nSnYXkVkf3mXFfE7vVyPmi3Sazhb/2cfZGGs0JRzFsPFvAMBEcrweV1V1GsrstdXeKCTXlJbvnQwGWgEIHmOA==}
+ 
+   '@vitest/snapshot@1.6.1':
+@@ -792,20 +838,24 @@ packages:
+     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
+     hasBin: true
+ 
+   napi-build-utils@2.0.0:
+     resolution: {integrity: sha512-GEbrYkbfF7MoNaoh2iGG84Mnf/WZfB0GdGEsM8wz7Expx/LlWf5U8t9nvJKXSp3qr5IsEbK04cBGhol/KwOsWA==}
+ 
+   node-abi@3.92.0:
+     resolution: {integrity: sha512-KdHvFWZjEKDf0cakgFjebl371GPsISX2oZHcuyKqM7DtogIsHrqKeLTo8wBHxaXRAQlY2PsPlZmfo+9ZCxEREQ==}
+     engines: {node: '>=10'}
+ 
++  node-cron@3.0.3:
++    resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
++    engines: {node: '>=6.0.0'}
++
+   npm-run-path@5.3.0:
+     resolution: {integrity: sha512-ppwTtiJZq0O/ai0z7yfudtBpWIoxM8yE6nHi1X47eFR2EWORqfbu6CnPlNsjeN683eT0qG6H/Pyf9fCcvjnnnQ==}
+     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+ 
+   once@1.4.0:
+     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
+ 
+   onetime@6.0.0:
+     resolution: {integrity: sha512-1FlR+gjXK7X+AsAHso35MnyN5KqGwJRi/31ft6x0M194ht7S+rWAvd7PHss9xSKMzE0asv1pyIHaJYq+BbacAQ==}
+     engines: {node: '>=12'}
+@@ -960,20 +1010,25 @@ packages:
+ 
+   ufo@1.6.4:
+     resolution: {integrity: sha512-JFNbkD1Svwe0KvGi8GOeLcP4kAWQ609twvCdcHxq1oSL8svv39ZuSvajcD8B+5D0eL4+s1Is2D/O6KN3qcTeRA==}
+ 
+   undici-types@8.3.0:
+     resolution: {integrity: sha512-j375ScV60dom+YkPFIfTLcOiPxkN/buHz5GobjLhixFuANaNs3C9l4GmrWqejgXWJ7BbJcFYpTEUkS1Ge8bpZQ==}
+ 
+   util-deprecate@1.0.2:
+     resolution: {integrity: sha512-EPD5q1uXyFxJpCrLnCc1nHnq3gOa6DZBocAIiI2TaSCA7VCJ1UJDMagCzIkXNsUYfD1daK//LTEQ8xiIbrHtcw==}
+ 
++  uuid@8.3.2:
++    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
++    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
++    hasBin: true
++
+   vite-node@1.6.1:
+     resolution: {integrity: sha512-YAXkfvGtuTzwWbDSACdJSg4A4DZiAqckWe90Zapc/sEX3XvHcw1NdurM/6od8J207tSDqNbSsgdCacBgvJKFuA==}
+     engines: {node: ^18.0.0 || >=20.0.0}
+     hasBin: true
+ 
+   vite@5.4.21:
+     resolution: {integrity: sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw==}
+     engines: {node: ^18.0.0 || >=20.0.0}
+     hasBin: true
+     peerDependencies:
+@@ -1279,20 +1334,22 @@ snapshots:
+     optional: true
+ 
+   '@sinclair/typebox@0.27.10': {}
+ 
+   '@types/better-sqlite3@7.6.13':
+     dependencies:
+       '@types/node': 26.0.1
+ 
+   '@types/estree@1.0.9': {}
+ 
++  '@types/node-cron@3.0.11': {}
++
+   '@types/node@26.0.1':
+     dependencies:
+       undici-types: 8.3.0
+ 
+   '@vitest/expect@1.6.1':
+     dependencies:
+       '@vitest/spy': 1.6.1
+       '@vitest/utils': 1.6.1
+       chai: 4.5.0
+ 
+@@ -1532,20 +1589,24 @@ snapshots:
+   ms@2.1.3: {}
+ 
+   nanoid@3.3.15: {}
+ 
+   napi-build-utils@2.0.0: {}
+ 
+   node-abi@3.92.0:
+     dependencies:
+       semver: 7.8.5
+ 
++  node-cron@3.0.3:
++    dependencies:
++      uuid: 8.3.2
++
+   npm-run-path@5.3.0:
+     dependencies:
+       path-key: 4.0.0
+ 
+   once@1.4.0:
+     dependencies:
+       wrappy: 1.0.2
+ 
+   onetime@6.0.0:
+     dependencies:
+@@ -1725,20 +1786,22 @@ snapshots:
+   type-detect@4.1.0: {}
+ 
+   typescript@5.9.3: {}
+ 
+   ufo@1.6.4: {}
+ 
+   undici-types@8.3.0: {}
+ 
+   util-deprecate@1.0.2: {}
+ 
++  uuid@8.3.2: {}
++
+   vite-node@1.6.1(@types/node@26.0.1):
+     dependencies:
+       cac: 6.7.14
+       debug: 4.4.3
+       pathe: 1.1.2
+       picocolors: 1.1.1
+       vite: 5.4.21(@types/node@26.0.1)
+     transitivePeerDependencies:
+       - '@types/node'
+       - less

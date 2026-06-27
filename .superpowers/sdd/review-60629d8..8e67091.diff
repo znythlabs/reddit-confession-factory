@@ -1,0 +1,274 @@
+# Review package: 60629d8..8e67091
+
+## Commits
+8e67091 feat(exporter): per-platform publish bundles + manifest
+
+## Files changed
+ packages/exporter/package.json         | 11 +++++++++++
+ packages/exporter/src/bundle.ts        | 30 ++++++++++++++++++++++++++++++
+ packages/exporter/src/captions.ts      | 29 +++++++++++++++++++++++++++++
+ packages/exporter/src/index.ts         | 29 +++++++++++++++++++++++++++++
+ packages/exporter/src/manifest.ts      | 21 +++++++++++++++++++++
+ packages/exporter/tests/bundle.test.ts | 24 ++++++++++++++++++++++++
+ packages/exporter/tsconfig.json        |  1 +
+ pnpm-lock.yaml                         | 32 ++++++++++++++++++++++++++++++++
+ 8 files changed, 177 insertions(+)
+
+## Diff
+diff --git a/packages/exporter/package.json b/packages/exporter/package.json
+new file mode 100644
+index 0000000..ce5b26a
+--- /dev/null
++++ b/packages/exporter/package.json
+@@ -0,0 +1,11 @@
++{
++  "name": "@rcf/exporter",
++  "version": "0.0.0",
++  "type": "module",
++  "main": "./dist/index.js",
++  "types": "./dist/index.d.ts",
++  "exports": { ".": "./dist/index.js" },
++  "scripts": { "build": "tsc", "test": "vitest run", "start": "tsx src/index.ts" },
++  "dependencies": { "@rcf/core": "workspace:*" },
++  "devDependencies": { "tsx": "^4.7.0", "typescript": "^5.4.0", "vitest": "^1.6.0" }
++}
+diff --git a/packages/exporter/src/bundle.ts b/packages/exporter/src/bundle.ts
+new file mode 100644
+index 0000000..0cfd6d4
+--- /dev/null
++++ b/packages/exporter/src/bundle.ts
+@@ -0,0 +1,30 @@
++import { mkdir, writeFile, stat, copyFile } from "node:fs/promises";
++import path from "node:path";
++import { PublishBundleSchema, type StoryPackage, type RenderPackage, paths } from "@rcf/core";
++import { buildCaption, buildHashtags, buildTitles } from "./captions.js";
++
++type PublishBundle = ReturnType<typeof PublishBundleSchema.parse>;
++
++export const writeBundle = async (
++  rp: RenderPackage,
++  story: StoryPackage,
++  platform: "tiktok" | "instagram_reels" | "youtube_shorts"
++): Promise<PublishBundle> => {
++  const src = rp.render_targets[0]!.out_path;
++  await stat(src); // hard fail if render missing
++  const dir = path.join(paths.bundleDir(story.story_id), platform);
++  await mkdir(dir, { recursive: true });
++  const dst = path.join(dir, path.basename(src));
++  await copyFile(src, dst);
++  const bundle = PublishBundleSchema.parse({
++    story_id: story.story_id,
++    platform,
++    video_path: dst,
++    caption: buildCaption(story),
++    title_options: buildTitles(story),
++    hashtags: buildHashtags(story),
++    status: "ready",
++  });
++  await writeFile(path.join(dir, "bundle.json"), JSON.stringify(bundle, null, 2));
++  return bundle;
++};
+diff --git a/packages/exporter/src/captions.ts b/packages/exporter/src/captions.ts
+new file mode 100644
+index 0000000..9ea23f8
+--- /dev/null
++++ b/packages/exporter/src/captions.ts
+@@ -0,0 +1,29 @@
++import type { StoryPackage } from "@rcf/core";
++
++export const buildCaption = (s: StoryPackage): string => {
++  const base = s.hook;
++  const cta =
++    s.cta === "comment-your-take"
++      ? "\n\nWhat would you have done? Tell me in the comments."
++      : s.cta === "share-if-relate"
++        ? "\n\nShare if you have been there."
++        : s.cta === "follow-for-part-2"
++          ? "\n\nFollow for part 2."
++          : "";
++  return `${base}${cta}`;
++};
++
++export const buildHashtags = (s: StoryPackage): string[] => {
++  const base = ["#storytime", "#confession", "#fictionalstory", "#shorts"];
++  const tone =
++    s.tone === "unsettling" || s.tone === "ominous" || s.tone === "tense"
++      ? ["#creepy", "#moody"]
++      : ["#reflective", "#emotional"];
++  return [...base, ...tone, "#aiart"].slice(0, 8);
++};
++
++export const buildTitles = (s: StoryPackage): string[] => [
++  s.hook,
++  `Confession: ${s.forum_card.display_title}`,
++  s.twist,
++].slice(0, 3);
+diff --git a/packages/exporter/src/index.ts b/packages/exporter/src/index.ts
+new file mode 100644
+index 0000000..16c3a59
+--- /dev/null
++++ b/packages/exporter/src/index.ts
+@@ -0,0 +1,29 @@
++import { readdir, readFile } from "node:fs/promises";
++import path from "node:path";
++import { paths, type RenderPackage, type StoryPackage } from "@rcf/core";
++import { writeBundle } from "./bundle.js";
++import { writeStoryManifest } from "./manifest.js";
++
++const PLATFORM_BY_TARGET: Record<string, "tiktok" | "instagram_reels" | "youtube_shorts"> = {
++  tiktok_reels: "tiktok",
++  youtube_shorts: "youtube_shorts",
++};
++
++const main = async () => {
++  const files = (await readdir(paths.renderDir())).filter((f) => f.endsWith(".json"));
++  const seen = new Set<string>();
++  for (const f of files) {
++    const rp = JSON.parse(await readFile(path.join(paths.renderDir(), f), "utf8")) as RenderPackage;
++    const story = JSON.parse(await readFile(paths.storyJson(rp.story_id), "utf8")) as StoryPackage;
++    const platform = PLATFORM_BY_TARGET[rp.render_targets[0]!.platform]!;
++    await writeBundle(rp, story, platform);
++    seen.add(story.story_id);
++  }
++  for (const id of seen) await writeStoryManifest(id);
++  console.log(`exporter: ${seen.size} stories bundled`);
++};
++
++main().catch((e) => {
++  console.error(e);
++  process.exit(1);
++});
+diff --git a/packages/exporter/src/manifest.ts b/packages/exporter/src/manifest.ts
+new file mode 100644
+index 0000000..1bd0235
+--- /dev/null
++++ b/packages/exporter/src/manifest.ts
+@@ -0,0 +1,21 @@
++import { writeFile, mkdir, readdir, readFile } from "node:fs/promises";
++import path from "node:path";
++import { paths, PublishBundleSchema } from "@rcf/core";
++
++type PublishBundle = ReturnType<typeof PublishBundleSchema.parse>;
++
++export const writeStoryManifest = async (storyId: string): Promise<void> => {
++  const dir = paths.bundleDir(storyId);
++  await mkdir(dir, { recursive: true });
++  const subs = (await readdir(dir, { withFileTypes: true })).filter((d) => d.isDirectory());
++  const bundles: PublishBundle[] = [];
++  for (const s of subs) {
++    try {
++      const raw = await readFile(path.join(dir, s.name, "bundle.json"), "utf8");
++      bundles.push(JSON.parse(raw) as PublishBundle);
++    } catch {
++      // skip incomplete
++    }
++  }
++  await writeFile(path.join(dir, "manifest.json"), JSON.stringify({ story_id: storyId, bundles }, null, 2));
++};
+diff --git a/packages/exporter/tests/bundle.test.ts b/packages/exporter/tests/bundle.test.ts
+new file mode 100644
+index 0000000..6ef7c65
+--- /dev/null
++++ b/packages/exporter/tests/bundle.test.ts
+@@ -0,0 +1,24 @@
++import { describe, it, expect } from "vitest";
++import { buildCaption, buildHashtags, buildTitles } from "../src/captions.js";
++import validStory from "../../heuristic/tests/fixtures/valid-story.json" assert { type: "json" };
++import { StoryPackageSchema, type StoryPackage } from "@rcf/core";
++
++const story: StoryPackage = StoryPackageSchema.parse(validStory);
++
++describe("captions", () => {
++  it("caption includes the hook and a CTA when applicable", () => {
++    const c = buildCaption(story);
++    expect(c).toContain(story.hook);
++    expect(c).toContain("comments");
++  });
++  it("hashtags return 2-15 entries", () => {
++    const h = buildHashtags(story);
++    expect(h.length).toBeGreaterThanOrEqual(2);
++    expect(h.length).toBeLessThanOrEqual(15);
++  });
++  it("titles return 1-3 entries", () => {
++    const t = buildTitles(story);
++    expect(t.length).toBeGreaterThanOrEqual(1);
++    expect(t.length).toBeLessThanOrEqual(3);
++  });
++});
+diff --git a/packages/exporter/tsconfig.json b/packages/exporter/tsconfig.json
+new file mode 100644
+index 0000000..86bbd96
+--- /dev/null
++++ b/packages/exporter/tsconfig.json
+@@ -0,0 +1 @@
++{ "extends": "../../tsconfig.base.json", "compilerOptions": { "outDir": "dist", "rootDir": "src" }, "include": ["src"] }
+diff --git a/pnpm-lock.yaml b/pnpm-lock.yaml
+index e71d1af..d4d839e 100644
+--- a/pnpm-lock.yaml
++++ b/pnpm-lock.yaml
+@@ -5,33 +5,65 @@ settings:
+   excludeLinksFromLockfile: false
+ 
+ importers:
+ 
+   .:
+     devDependencies:
+       '@types/node':
+         specifier: ^26.0.1
+         version: 26.0.1
+ 
++  packages/composer:
++    dependencies:
++      '@rcf/core':
++        specifier: workspace:*
++        version: link:../core
++    devDependencies:
++      tsx:
++        specifier: ^4.7.0
++        version: 4.22.4
++      typescript:
++        specifier: ^5.4.0
++        version: 5.9.3
++      vitest:
++        specifier: ^1.6.0
++        version: 1.6.1(@types/node@26.0.1)
++
+   packages/core:
+     dependencies:
+       zod:
+         specifier: ^3.23.8
+         version: 3.25.76
+     devDependencies:
+       typescript:
+         specifier: ^5.4.0
+         version: 5.9.3
+       vitest:
+         specifier: ^1.6.0
+         version: 1.6.1(@types/node@26.0.1)
+ 
++  packages/exporter:
++    dependencies:
++      '@rcf/core':
++        specifier: workspace:*
++        version: link:../core
++    devDependencies:
++      tsx:
++        specifier: ^4.7.0
++        version: 4.22.4
++      typescript:
++        specifier: ^5.4.0
++        version: 5.9.3
++      vitest:
++        specifier: ^1.6.0
++        version: 1.6.1(@types/node@26.0.1)
++
+   packages/formatter:
+     dependencies:
+       '@rcf/core':
+         specifier: workspace:*
+         version: link:../core
+     devDependencies:
+       tsx:
+         specifier: ^4.7.0
+         version: 4.22.4
+       typescript:
